@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
+import { getSession } from '@/lib/auth';
 import Modal from '@/components/Modal';
 import { Item, Profile } from '@/lib/types';
 
@@ -18,11 +19,9 @@ export default function ItemsPage() {
   const [search, setSearch]   = useState('');
 
   useEffect(() => {
-    supabase.auth.getUser().then(async ({ data: { user } }) => {
-      if (!user) return;
-      const { data: prof } = await supabase.from('profiles').select('*, company:companies(name)').eq('id', user.id).single();
-      setProfile(prof as Profile);
-    });
+    const session = getSession();
+    if (!session) return;
+    setProfile(session);
   }, []);
 
   const load = useCallback(async () => {

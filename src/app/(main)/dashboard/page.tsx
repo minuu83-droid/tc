@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
+import { getSession } from '@/lib/auth';
 import StatusBadge from '@/components/StatusBadge';
 import { Profile, Order, Contract } from '@/lib/types';
 
@@ -37,12 +38,10 @@ export default function DashboardPage() {
   const [expiringContracts, setExpiring]  = useState<Contract[]>([]);
 
   useEffect(() => {
-    supabase.auth.getUser().then(async ({ data: { user } }) => {
-      if (!user) return;
-      const { data: prof } = await supabase.from('profiles').select('*, company:companies(name)').eq('id', user.id).single();
-      setProfile(prof as Profile);
-      loadDashboard(prof as Profile);
-    });
+    const session = getSession();
+    if (!session) return;
+    setProfile(session);
+    loadDashboard(session);
   }, []);
 
   const loadDashboard = async (prof: Profile) => {

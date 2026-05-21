@@ -1,16 +1,15 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
+import { clearSession } from '@/lib/auth';
 import { Profile } from '@/lib/types';
 
 export default function Header({ profile, title }: { profile: Profile; title: string }) {
   const router = useRouter();
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
+  const handleLogout = () => {
+    clearSession();
     router.push('/login');
-    router.refresh();
   };
 
   return (

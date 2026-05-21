@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
+import { getSession } from '@/lib/auth';
 import StatusBadge from '@/components/StatusBadge';
 import Modal from '@/components/Modal';
 import { PurchaseRequest, Bid, Profile } from '@/lib/types';
@@ -21,11 +22,9 @@ export default function RequestsPage() {
   const [err, setErr]           = useState('');
 
   useEffect(() => {
-    supabase.auth.getUser().then(async ({ data: { user } }) => {
-      if (!user) return;
-      const { data: prof } = await supabase.from('profiles').select('*, company:companies(name)').eq('id', user.id).single();
-      setProfile(prof as Profile);
-    });
+    const session = getSession();
+    if (!session) return;
+    setProfile(session);
   }, []);
 
   const load = useCallback(async () => {
@@ -74,6 +73,7 @@ export default function RequestsPage() {
       p_start_date: awardForm.start_date,
       p_end_date: awardForm.end_date,
       p_prev_unit_price: awardForm.prev_unit_price ? Number(awardForm.prev_unit_price) : null,
+      p_created_by: profile?.id ?? null,
     });
     setSaving(false);
     if (error) { setErr(error.message); return; }

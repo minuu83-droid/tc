@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { getSession } from '@/lib/auth';
 import StatusBadge from '@/components/StatusBadge';
 import { Profile, PurchaseRequest, Bid } from '@/lib/types';
 
@@ -11,12 +12,10 @@ export default function BidsPage() {
   const [myBids, setMyBids]       = useState<(Bid & { item_name?: string; quantity?: number })[]>([]);
 
   useEffect(() => {
-    supabase.auth.getUser().then(async ({ data: { user } }) => {
-      if (!user) return;
-      const { data: prof } = await supabase.from('profiles').select('*, company:companies(name)').eq('id', user.id).single();
-      setProfile(prof as Profile);
-      loadData(prof as Profile);
-    });
+    const session = getSession();
+    if (!session) return;
+    setProfile(session);
+    loadData(session);
   }, []);
 
   const loadData = async (prof: Profile) => {

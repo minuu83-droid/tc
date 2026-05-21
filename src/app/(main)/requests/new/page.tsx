@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { getSession } from '@/lib/auth';
 import { Item, Profile } from '@/lib/types';
 
 export default function NewRequestPage() {
@@ -18,11 +19,8 @@ export default function NewRequestPage() {
   const [error, setError]         = useState('');
 
   useEffect(() => {
-    supabase.auth.getUser().then(async ({ data: { user } }) => {
-      if (!user) return;
-      const { data: prof } = await supabase.from('profiles').select('*, company:companies(name)').eq('id', user.id).single();
-      setProfile(prof as Profile);
-    });
+    const session = getSession();
+    if (session) setProfile(session);
     supabase.from('items').select('*').order('code').then(({ data }) => setItems((data ?? []) as Item[]));
   }, []);
 
@@ -46,6 +44,7 @@ export default function NewRequestPage() {
           p_item_id: Number(form.item_id),
           p_item_name: form.item_name,
           p_quantity: Number(form.quantity),
+          p_requester_id: profile!.id,
           p_required_date: form.required_date || null,
           p_notes: form.notes || null,
         });

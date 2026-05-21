@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { setSession } from '@/lib/auth';
+import { Profile } from '@/lib/types';
 
 const DEMO_ACCOUNTS = [
   { email: 'admin@company.com',  password: 'admin123', role: '직영',       name: '홍길동' },
@@ -20,11 +22,17 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(''); setLoading(true);
-    const { error: err } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error: rpcErr } = await supabase.rpc('login', {
+      p_email:    email,
+      p_password: password,
+    });
     setLoading(false);
-    if (err) { setError('이메일 또는 비밀번호가 올바르지 않습니다.'); return; }
+    if (rpcErr || !data || data.error) {
+      setError((data as { error?: string } | null)?.error ?? '로그인 실패. 다시 시도해주세요.');
+      return;
+    }
+    setSession(data as Profile);
     router.push('/dashboard');
-    router.refresh();
   };
 
   return (
