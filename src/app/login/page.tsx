@@ -7,14 +7,14 @@ import { setSession } from '@/lib/auth';
 import { Profile } from '@/lib/types';
 
 const DEMO_ACCOUNTS = [
-  { email: 'admin@company.com',  password: 'admin123', role: '직영',       name: '홍길동' },
-  { email: 'user1@abc.com',      password: 'user123',  role: '사용협력사', name: '김철수 (ABC 제조)' },
-  { email: 'supplier1@wuri.com', password: 'sup123',   role: '납품협력사', name: '박민준 (우리공급)' },
+  { username: 'admin',     password: 'admin123', role: '직영',       name: '홍길동' },
+  { username: 'user1',     password: 'user123',  role: '사용협력사', name: '김철수 (ABC 제조)' },
+  { username: 'supplier1', password: 'sup123',   role: '납품협력사', name: '박민준 (우리공급)' },
 ];
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail]       = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError]       = useState('');
   const [loading, setLoading]   = useState(false);
@@ -22,12 +22,19 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(''); setLoading(true);
+
+    console.log('[LOGIN] RPC 호출 시작:', { username });
     const { data, error: rpcErr } = await supabase.rpc('login', {
-      p_email:    email,
+      p_username: username,
       p_password: password,
     });
     setLoading(false);
-    if (rpcErr || !data || data.error) {
+
+    if (rpcErr) {
+      setError(`RPC 오류: ${rpcErr.message}`);
+      return;
+    }
+    if (!data || (data as { error?: string }).error) {
       setError((data as { error?: string } | null)?.error ?? '로그인 실패. 다시 시도해주세요.');
       return;
     }
@@ -47,9 +54,9 @@ export default function LoginPage() {
           </div>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="label">이메일</label>
-              <input className="input" type="email" value={email}
-                onChange={e => setEmail(e.target.value)} placeholder="이메일 입력" required autoFocus />
+              <label className="label">아이디</label>
+              <input className="input" type="text" value={username}
+                onChange={e => setUsername(e.target.value)} placeholder="아이디 입력" required autoFocus />
             </div>
             <div>
               <label className="label">비밀번호</label>
@@ -70,7 +77,7 @@ export default function LoginPage() {
           <h3 className="font-semibold mb-4 text-lg">테스트 계정</h3>
           <div className="space-y-3">
             {DEMO_ACCOUNTS.map(acc => (
-              <button key={acc.email} onClick={() => { setEmail(acc.email); setPassword(acc.password); }}
+              <button key={acc.username} onClick={() => { setUsername(acc.username); setPassword(acc.password); }}
                 className="w-full text-left bg-white/10 hover:bg-white/20 rounded-xl p-3 transition-colors">
                 <div className="flex items-center justify-between mb-1">
                   <span className="font-medium text-sm">{acc.name}</span>
@@ -78,7 +85,7 @@ export default function LoginPage() {
                     acc.role==='직영' ? 'bg-blue-500' : acc.role==='사용협력사' ? 'bg-green-500' : 'bg-purple-500'
                   }`}>{acc.role}</span>
                 </div>
-                <div className="text-xs text-white/70">{acc.email}</div>
+                <div className="text-xs text-white/70">ID: {acc.username}</div>
               </button>
             ))}
           </div>
