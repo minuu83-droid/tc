@@ -4,6 +4,7 @@ export type Profile = {
   id: string;
   name: string;
   email: string | null;
+  username: string;
   role: Role;
   company_id: number | null;
   company?: { name: string } | null;
