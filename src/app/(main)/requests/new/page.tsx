@@ -1,13 +1,17 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { getSession } from '@/lib/auth';
 import { Item, Profile } from '@/lib/types';
 
+const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+const MAX_IMAGES = 3;
+
 export default function NewRequestPage() {
   const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [items, setItems]     = useState<Item[]>([]);
   const [form, setForm]       = useState({
@@ -17,6 +21,8 @@ export default function NewRequestPage() {
   const [autoOrder, setAutoOrder] = useState(false);
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState('');
+  const [imageFiles, setImageFiles]     = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
 
   useEffect(() => {
     const session = getSession();
@@ -34,11 +40,52 @@ export default function NewRequestPage() {
     }
   };
 
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    const valid = files.filter(f => ALLOWED_TYPES.includes(f.type));
+    if (valid.length !== files.length) {
+      setError('JPG, PNG, GIF, WEBP 형식의 이미지만 첨부할 수 있습니다.');
+      e.target.value = '';
+      return;
+    }
+    const next = [...imageFiles, ...valid].slice(0, MAX_IMAGES);
+    setImageFiles(next);
+    setImagePreviews(next.map(f => URL.createObjectURL(f)));
+    e.target.value = '';
+    setError('');
+  };
+
+  const removeImage = (idx: number) => {
+    const next = imageFiles.filter((_, i) => i !== idx);
+    setImageFiles(next);
+    setImagePreviews(prev => {
+      URL.revokeObjectURL(prev[idx]);
+      return next.map(f => URL.createObjectURL(f));
+    });
+  };
+
+  const uploadImages = async (): Promise<string[]> => {
+    const urls: string[] = [];
+    for (const file of imageFiles) {
+      const ext = file.name.split('.').pop();
+      const path = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from('procurement-images')
+        .upload(path, file, { contentType: file.type });
+      if (upErr) throw new Error(`이미지 업로드 실패: ${upErr.message}`);
+      const { data } = supabase.storage.from('procurement-images').getPublicUrl(path);
+      urls.push(data.publicUrl);
+    }
+    return urls;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!profile) return;
     setLoading(true); setError('');
     try {
+      const image_urls = imageFiles.length > 0 ? await uploadImages() : null;
+
       if (form.item_id) {
         const { data } = await supabase.rpc('create_auto_order', {
           p_item_id: Number(form.item_id),
@@ -50,7 +97,6 @@ export default function NewRequestPage() {
         });
         if (data) { alert(data.message ?? '자동 발주 처리되었습니다.'); router.push('/orders'); return; }
       }
-      // 일반 구매 요청
       const { error: err } = await supabase.from('purchase_requests').insert({
         item_id: form.item_id ? Number(form.item_id) : null,
         item_name: form.item_name,
@@ -63,9 +109,12 @@ export default function NewRequestPage() {
         company_id: profile.company_id,
         status: 'bidding',
         notes: form.notes || null,
+        image_urls,
       });
       if (err) { setError(err.message); return; }
       router.push('/requests');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : '오류가 발생했습니다.');
     } finally {
       setLoading(false);
     }
@@ -124,6 +173,48 @@ export default function NewRequestPage() {
             <label className="label">비고</label>
             <textarea className="input resize-none h-20" value={form.notes} onChange={e => set('notes', e.target.value)} />
           </div>
+
+          {/* 이미지 첨부 */}
+          <div>
+            <label className="label">사진 첨부 (최대 3장 · JPG, PNG, GIF, WEBP)</label>
+            <div className="flex flex-wrap gap-3 mt-1">
+              {imagePreviews.map((src, idx) => (
+                <div key={idx} className="relative w-24 h-24 rounded-lg overflow-hidden border border-gray-200 bg-gray-50">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={src} alt={`첨부 이미지 ${idx + 1}`} className="w-full h-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => removeImage(idx)}
+                    className="absolute top-0.5 right-0.5 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center leading-none hover:bg-red-600"
+                    aria-label="이미지 삭제"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+              {imageFiles.length < MAX_IMAGES && (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-24 h-24 rounded-lg border-2 border-dashed border-gray-300 flex flex-col items-center justify-center text-gray-400 hover:border-blue-400 hover:text-blue-400 transition-colors"
+                >
+                  <svg className="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  <span className="text-xs">사진 추가</span>
+                </button>
+              )}
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".jpg,.jpeg,.png,.gif,.webp,image/jpeg,image/png,image/gif,image/webp"
+              multiple
+              className="hidden"
+              onChange={handleImageChange}
+            />
+          </div>
+
           {error && <p className="text-red-600 text-sm">{error}</p>}
           <div className="flex gap-3 pt-2">
             <button type="button" className="btn-secondary flex-1" onClick={() => router.back()}>취소</button>

@@ -52,6 +52,7 @@ export type PurchaseRequest = {
   company_id: number | null;
   status: 'pending' | 'bidding' | 'awarded' | 'contracted' | 'completed' | 'cancelled';
   notes: string | null;
+  image_urls: string[] | null;
   requester?: { name: string } | null;
   company?: { name: string } | null;
   created_at: string;
