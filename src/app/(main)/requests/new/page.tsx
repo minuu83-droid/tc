@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, DragEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { getSession } from '@/lib/auth';
@@ -12,6 +12,9 @@ const MAX_IMAGES = 3;
 export default function NewRequestPage() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dropZoneRef = useRef<HTMLDivElement>(null);
+  const dragCounter = useRef(0);
+
   const [profile, setProfile] = useState<Profile | null>(null);
   const [items, setItems]     = useState<Item[]>([]);
   const [form, setForm]       = useState({
@@ -21,8 +24,9 @@ export default function NewRequestPage() {
   const [autoOrder, setAutoOrder] = useState(false);
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState('');
-  const [imageFiles, setImageFiles]     = useState<File[]>([]);
+  const [imageFiles, setImageFiles]       = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [isDragging, setIsDragging]       = useState(false);
 
   useEffect(() => {
     const session = getSession();
@@ -40,27 +44,71 @@ export default function NewRequestPage() {
     }
   };
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? []);
+  /* ── 파일 추가 공통 로직 ── */
+  const addFiles = (files: File[]) => {
     const valid = files.filter(f => ALLOWED_TYPES.includes(f.type));
     if (valid.length !== files.length) {
       setError('JPG, PNG, GIF, WEBP 형식의 이미지만 첨부할 수 있습니다.');
-      e.target.value = '';
-      return;
+      if (valid.length === 0) return;
+    } else {
+      setError('');
     }
-    const next = [...imageFiles, ...valid].slice(0, MAX_IMAGES);
-    setImageFiles(next);
-    setImagePreviews(next.map(f => URL.createObjectURL(f)));
+    setImageFiles(prev => {
+      const next = [...prev, ...valid].slice(0, MAX_IMAGES);
+      setImagePreviews(next.map(f => URL.createObjectURL(f)));
+      return next;
+    });
+  };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    addFiles(files);
     e.target.value = '';
-    setError('');
+  };
+
+  /* ── 드래그 앤 드롭 이벤트 ── */
+  const handleDragEnter = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current++;
+    if (imageFiles.length < MAX_IMAGES) setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current--;
+    if (dragCounter.current === 0) setIsDragging(false);
+  };
+
+  const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    dragCounter.current = 0;
+    if (imageFiles.length >= MAX_IMAGES) return;
+    const files = Array.from(e.dataTransfer.files);
+    addFiles(files);
+  };
+
+  /* ── 모바일 터치: 드롭존 탭 시 파일 선택 ── */
+  const handleDropZoneClick = () => {
+    if (imageFiles.length < MAX_IMAGES) fileInputRef.current?.click();
   };
 
   const removeImage = (idx: number) => {
-    const next = imageFiles.filter((_, i) => i !== idx);
-    setImageFiles(next);
-    setImagePreviews(prev => {
-      URL.revokeObjectURL(prev[idx]);
-      return next.map(f => URL.createObjectURL(f));
+    setImageFiles(prev => {
+      const next = prev.filter((_, i) => i !== idx);
+      setImagePreviews(prev2 => {
+        URL.revokeObjectURL(prev2[idx]);
+        return next.map(f => URL.createObjectURL(f));
+      });
+      return next;
     });
   };
 
@@ -122,6 +170,8 @@ export default function NewRequestPage() {
 
   const set = (k: string, v: string) => setForm(f => ({...f, [k]:v}));
 
+  const isFull = imageFiles.length >= MAX_IMAGES;
+
   return (
     <div className="max-w-2xl">
       <div className="card p-6">
@@ -174,37 +224,121 @@ export default function NewRequestPage() {
             <textarea className="input resize-none h-20" value={form.notes} onChange={e => set('notes', e.target.value)} />
           </div>
 
-          {/* 이미지 첨부 */}
+          {/* ── 사진 첨부 (드래그 앤 드롭) ── */}
           <div>
-            <label className="label">사진 첨부 (최대 3장 · JPG, PNG, GIF, WEBP)</label>
-            <div className="flex flex-wrap gap-3 mt-1">
-              {imagePreviews.map((src, idx) => (
-                <div key={idx} className="relative w-24 h-24 rounded-lg overflow-hidden border border-gray-200 bg-gray-50">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={src} alt={`첨부 이미지 ${idx + 1}`} className="w-full h-full object-cover" />
+            <div className="flex items-center justify-between mb-2">
+              <label className="label mb-0">사진 첨부</label>
+              <span className="text-xs text-gray-400">
+                JPG · PNG · GIF · WEBP · 최대 {MAX_IMAGES}장
+              </span>
+            </div>
+
+            {/* 드롭 존 */}
+            <div
+              ref={dropZoneRef}
+              onDragEnter={handleDragEnter}
+              onDragLeave={handleDragLeave}
+              onDragOver={handleDragOver}
+              onDrop={handleDrop}
+              onClick={handleDropZoneClick}
+              role="button"
+              tabIndex={0}
+              onKeyDown={e => e.key === 'Enter' && handleDropZoneClick()}
+              aria-label="사진 첨부 영역. 클릭하거나 드래그하여 이미지를 추가하세요"
+              className={[
+                'relative mt-1 rounded-xl border-2 border-dashed transition-all duration-200 select-none',
+                isFull
+                  ? 'border-gray-200 bg-gray-50 cursor-not-allowed'
+                  : isDragging
+                    ? 'border-blue-400 bg-blue-50 scale-[1.01] shadow-md cursor-copy'
+                    : 'border-gray-300 bg-gray-50 hover:border-blue-300 hover:bg-blue-50/40 cursor-pointer',
+              ].join(' ')}
+            >
+              {/* 드래그 중 오버레이 */}
+              {isDragging && (
+                <div className="absolute inset-0 rounded-xl bg-blue-400/10 flex items-center justify-center z-10 pointer-events-none">
+                  <div className="flex flex-col items-center gap-2">
+                    <svg className="w-10 h-10 text-blue-500 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                    </svg>
+                    <span className="text-blue-600 font-semibold text-sm">여기에 놓으세요!</span>
+                  </div>
+                </div>
+              )}
+
+              <div className="p-6 flex flex-col items-center gap-2">
+                {/* 아이콘 */}
+                <div className={[
+                  'w-14 h-14 rounded-full flex items-center justify-center transition-colors',
+                  isDragging ? 'bg-blue-100' : 'bg-gray-100',
+                ].join(' ')}>
+                  <svg className={['w-7 h-7 transition-colors', isDragging ? 'text-blue-500' : 'text-gray-400'].join(' ')} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                      d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                </div>
+
+                {isFull ? (
+                  <p className="text-sm text-gray-400 text-center">최대 {MAX_IMAGES}장 첨부 완료</p>
+                ) : (
+                  <>
+                    <p className="text-sm font-medium text-gray-600 text-center">
+                      사진을 드래그하거나{' '}
+                      <span className="text-blue-500 underline underline-offset-2">클릭하여 선택</span>
+                    </p>
+                    <p className="text-xs text-gray-400 text-center">
+                      JPG, PNG, GIF, WEBP · {imageFiles.length}/{MAX_IMAGES}장 첨부됨
+                    </p>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* 썸네일 미리보기 */}
+            {imagePreviews.length > 0 && (
+              <div className="flex flex-wrap gap-3 mt-3">
+                {imagePreviews.map((src, idx) => (
+                  <div
+                    key={idx}
+                    className="relative w-24 h-24 rounded-lg overflow-hidden border border-gray-200 bg-gray-50 shadow-sm group"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={src} alt={`첨부 이미지 ${idx + 1}`} className="w-full h-full object-cover" />
+                    {/* 호버 오버레이 */}
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
+                    {/* 삭제 버튼 */}
+                    <button
+                      type="button"
+                      onClick={e => { e.stopPropagation(); removeImage(idx); }}
+                      className="absolute top-1 right-1 w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full text-sm flex items-center justify-center leading-none shadow transition-colors"
+                      aria-label={`이미지 ${idx + 1} 삭제`}
+                    >
+                      ×
+                    </button>
+                    {/* 순서 뱃지 */}
+                    <span className="absolute bottom-1 left-1 w-5 h-5 bg-black/50 text-white text-xs rounded-full flex items-center justify-center">
+                      {idx + 1}
+                    </span>
+                  </div>
+                ))}
+                {/* + 추가 버튼 (기존 유지) */}
+                {!isFull && (
                   <button
                     type="button"
-                    onClick={() => removeImage(idx)}
-                    className="absolute top-0.5 right-0.5 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center leading-none hover:bg-red-600"
-                    aria-label="이미지 삭제"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-24 h-24 rounded-lg border-2 border-dashed border-gray-300 flex flex-col items-center justify-center text-gray-400 hover:border-blue-400 hover:text-blue-400 transition-colors"
+                    aria-label="사진 추가"
                   >
-                    ×
+                    <svg className="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    <span className="text-xs">사진 추가</span>
                   </button>
-                </div>
-              ))}
-              {imageFiles.length < MAX_IMAGES && (
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="w-24 h-24 rounded-lg border-2 border-dashed border-gray-300 flex flex-col items-center justify-center text-gray-400 hover:border-blue-400 hover:text-blue-400 transition-colors"
-                >
-                  <svg className="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                  <span className="text-xs">사진 추가</span>
-                </button>
-              )}
-            </div>
+                )}
+              </div>
+            )}
+
+            {/* 숨김 파일 인풋 */}
             <input
               ref={fileInputRef}
               type="file"
