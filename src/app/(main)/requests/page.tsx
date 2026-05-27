@@ -19,8 +19,22 @@ export default function RequestsPage() {
   const [awardModal, setAwardModal] = useState<Bid | null>(null);
   const [bidForm, setBidForm]   = useState({ unit_price: '', delivery_days: '', notes: '' });
   const [awardForm, setAwardForm] = useState({ start_date: '', end_date: '', prev_unit_price: '' });
+  const [quickSelect, setQuickSelect] = useState<'once' | '6m' | '1y' | null>(null);
   const [saving, setSaving]     = useState(false);
   const [err, setErr]           = useState('');
+
+  /* 날짜 → YYYY-MM-DD */
+  const toDateStr = (d: Date) => d.toISOString().slice(0, 10);
+
+  /* 빠른 계약 기간 선택 */
+  const applyQuickSelect = (type: 'once' | '6m' | '1y') => {
+    const start = new Date();
+    const end   = new Date();
+    if (type === '6m') end.setMonth(end.getMonth() + 6);
+    if (type === '1y') end.setFullYear(end.getFullYear() + 1);
+    setAwardForm(f => ({ ...f, start_date: toDateStr(start), end_date: toDateStr(end) }));
+    setQuickSelect(type);
+  };
 
   useEffect(() => {
     const session = getSession();
@@ -197,7 +211,7 @@ export default function RequestsPage() {
                         <td className="table-td">
                           {b.status === 'submitted' && (
                             <button className="btn-primary py-1 px-2 text-xs"
-                              onClick={() => { setAwardModal(b); setAwardForm({start_date:'', end_date:'', prev_unit_price:''}); setErr(''); }}>
+                              onClick={() => { setAwardModal(b); setAwardForm({start_date:'', end_date:'', prev_unit_price:''}); setQuickSelect(null); setErr(''); }}>
                               낙찰
                             </button>
                           )}
@@ -249,16 +263,38 @@ export default function RequestsPage() {
               <p><strong>낙찰 업체:</strong> {(awardModal.supplier as {name:string}|null)?.name}</p>
               <p><strong>낙찰 단가:</strong> {awardModal.unit_price.toLocaleString()}원</p>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="label">계약 시작일 *</label>
-                <input className="input" type="date" value={awardForm.start_date}
-                  onChange={e => setAwardForm(f => ({...f, start_date:e.target.value}))} />
+            <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="label">계약 시작일 *</label>
+                  <input className="input" type="date" value={awardForm.start_date}
+                    onChange={e => { setAwardForm(f => ({...f, start_date:e.target.value})); setQuickSelect(null); }} />
+                </div>
+                <div>
+                  <label className="label">계약 종료일 *</label>
+                  <input className="input" type="date" value={awardForm.end_date}
+                    onChange={e => { setAwardForm(f => ({...f, end_date:e.target.value})); setQuickSelect(null); }} />
+                </div>
               </div>
-              <div>
-                <label className="label">계약 종료일 *</label>
-                <input className="input" type="date" value={awardForm.end_date}
-                  onChange={e => setAwardForm(f => ({...f, end_date:e.target.value}))} />
+
+              {/* 빠른 선택 버튼 */}
+              <div className="flex gap-2">
+                {([
+                  { key: 'once', label: '일회성', active: 'bg-gray-600 text-white border-gray-600', inactive: 'text-gray-600 border-gray-300 hover:bg-gray-50' },
+                  { key: '6m',   label: '6개월',  active: 'bg-blue-600 text-white border-blue-600',  inactive: 'text-blue-600 border-blue-300 hover:bg-blue-50' },
+                  { key: '1y',   label: '1년',    active: 'bg-green-600 text-white border-green-600', inactive: 'text-green-600 border-green-300 hover:bg-green-50' },
+                ] as const).map(({ key, label, active, inactive }) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => applyQuickSelect(key)}
+                    className={`flex-1 py-1.5 text-xs rounded-lg border font-medium transition-colors ${
+                      quickSelect === key ? active : `bg-white ${inactive}`
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
             </div>
             <div>
