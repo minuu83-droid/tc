@@ -19,7 +19,7 @@ export default function Header({ profile, title }: { profile: Profile; title: st
         <div className="text-right">
           <p className="text-sm font-medium text-gray-800">{profile.name}</p>
           <p className="text-xs text-gray-500">
-            {(profile.company as { name: string } | null)?.name ?? '직영'}
+            {(profile.company as { name: string } | null)?.name ?? profile.role}
           </p>
         </div>
         <button onClick={handleLogout}
