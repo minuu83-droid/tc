@@ -13,7 +13,7 @@ type MenuItem = {
 
 const menuItems: MenuItem[] = [
   { href: '/dashboard', label: '대시보드',    icon: '📊', roles: ['직영', '사용협력사', '납품협력사'] },
-  { href: '/requests',  label: '구매 요청',   icon: '📋', roles: ['직영', '사용협력사'] },
+  { href: '/requests',  label: '신규 구매품 등록', icon: '📋', roles: ['직영', '사용협력사'] },
   { href: '/bids',      label: '입찰 관리',   icon: '🏷️', roles: ['직영', '납품협력사'] },
   { href: '/orders',    label: '발주 현황',   icon: '📦', roles: ['직영', '사용협력사', '납품협력사'] },
   { href: '/contracts', label: '계약 이력',   icon: '📄', roles: ['직영', '납품협력사'] },

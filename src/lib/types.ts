@@ -86,6 +86,7 @@ export type Contract = {
   prev_unit_price: number | null;
   created_by: string | null;
   status: 'active' | 'expired' | 'terminated';
+  contract_type: '일회성' | '기간계약' | null;
   supplier?: { name: string } | null;
   created_at: string;
 };

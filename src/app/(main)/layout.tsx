@@ -9,8 +9,8 @@ import { Profile } from '@/lib/types';
 
 const PAGE_TITLES: Record<string, string> = {
   '/dashboard':    '대시보드',
-  '/requests':     '구매 요청',
-  '/requests/new': '구매 요청 등록',
+  '/requests':     '신규 구매품 등록',
+  '/requests/new': '신규 구매품 등록',
   '/bids':         '입찰 관리',
   '/orders':       '발주 현황',
   '/contracts':    '계약 이력',

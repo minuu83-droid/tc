@@ -175,7 +175,7 @@ export default function NewRequestPage() {
   return (
     <div className="max-w-2xl">
       <div className="card p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-6">구매 요청 등록</h2>
+        <h2 className="text-lg font-semibold text-gray-900 mb-6">신규 구매품 등록</h2>
         {autoOrder && (
           <div className="mb-4 p-3 bg-purple-50 border border-purple-200 rounded-lg text-sm text-purple-800">
             ✅ 이 품목은 유효한 계약이 있습니다. 등록 시 <strong>자동 발주</strong>로 처리됩니다.
@@ -353,7 +353,7 @@ export default function NewRequestPage() {
           <div className="flex gap-3 pt-2">
             <button type="button" className="btn-secondary flex-1" onClick={() => router.back()}>취소</button>
             <button type="submit" className="btn-primary flex-1" disabled={loading}>
-              {loading ? '처리 중...' : autoOrder ? '자동 발주 처리' : '구매 요청 등록'}
+              {loading ? '처리 중...' : autoOrder ? '자동 발주 처리' : '등록'}
             </button>
           </div>
         </form>

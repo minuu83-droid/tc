@@ -118,7 +118,7 @@ export default function RequestsPage() {
           ))}
         </div>
         {profile?.role !== '납품협력사' && (
-          <Link href="/requests/new" className="btn-primary">+ 구매 요청 등록</Link>
+          <Link href="/requests/new" className="btn-primary">+ 신규 구매품 등록</Link>
         )}
       </div>
 
@@ -133,7 +133,7 @@ export default function RequestsPage() {
             </tr>
           </thead>
           <tbody>
-            {filtered.length === 0 && <tr><td colSpan={7} className="table-td text-center text-gray-400 py-8">구매 요청이 없습니다.</td></tr>}
+            {filtered.length === 0 && <tr><td colSpan={7} className="table-td text-center text-gray-400 py-8">등록된 항목이 없습니다.</td></tr>}
             {filtered.map(r => (
               <tr key={r.id} className="border-t border-gray-100 hover:bg-gray-50">
                 <td className="table-td font-medium">
