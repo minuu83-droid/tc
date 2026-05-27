@@ -12,6 +12,7 @@ import ImageGallery from '@/components/ImageGallery';
 export default function RequestsPage() {
   const [profile, setProfile]   = useState<Profile | null>(null);
   const [requests, setRequests] = useState<PurchaseRequest[]>([]);
+  const [bidCounts, setBidCounts] = useState<Record<number, number>>({});
   const [filter, setFilter]     = useState('all');
   const [detail, setDetail]     = useState<PurchaseRequest | null>(null);
   const [bids, setBids]         = useState<Bid[]>([]);
@@ -47,7 +48,23 @@ export default function RequestsPage() {
       .from('purchase_requests')
       .select('*, requester:profiles!requester_id(name), company:companies!company_id(name)')
       .order('created_at', { ascending: false });
-    setRequests((data ?? []) as PurchaseRequest[]);
+    const reqList = (data ?? []) as PurchaseRequest[];
+    setRequests(reqList);
+
+    /* 입찰 건수 로드 (삭제 가능 여부 판별용) */
+    if (reqList.length > 0) {
+      const { data: bidData } = await supabase
+        .from('bids')
+        .select('request_id')
+        .in('request_id', reqList.map(r => r.id));
+      const counts: Record<number, number> = {};
+      (bidData ?? []).forEach((b: { request_id: number }) => {
+        counts[b.request_id] = (counts[b.request_id] ?? 0) + 1;
+      });
+      setBidCounts(counts);
+    } else {
+      setBidCounts({});
+    }
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -99,6 +116,14 @@ export default function RequestsPage() {
     alert('낙찰 처리 완료! 계약이 생성되었습니다.');
   };
 
+  /* ── 구매 요청 삭제 (직영 전용, 입찰 없을 때만) ── */
+  const deleteRequest = async (r: PurchaseRequest) => {
+    if (!confirm('정말 삭제하시겠습니까? 되돌릴 수 없습니다.')) return;
+    const { error } = await supabase.from('purchase_requests').delete().eq('id', r.id);
+    if (error) { alert(`삭제 실패: ${error.message}`); return; }
+    load();
+  };
+
   const STATUSES = ['all','pending','bidding','contracted','completed','cancelled'];
   const LABELS: Record<string,string> = { all:'전체', pending:'대기중', bidding:'입찰중', contracted:'계약완료', completed:'완료', cancelled:'취소' };
   const filtered = filter === 'all' ? requests : requests.filter(r => r.status === filter);
@@ -130,11 +155,16 @@ export default function RequestsPage() {
               <th className="table-th">수량</th><th className="table-th">필요일</th>
               <th className="table-th">요청자</th><th className="table-th">상태</th>
               <th className="table-th">상세</th>
+              {profile?.role === '직영' && <th className="table-th">삭제</th>}
             </tr>
           </thead>
           <tbody>
-            {filtered.length === 0 && <tr><td colSpan={7} className="table-td text-center text-gray-400 py-8">등록된 항목이 없습니다.</td></tr>}
-            {filtered.map(r => (
+            {filtered.length === 0 && (
+              <tr><td colSpan={profile?.role === '직영' ? 8 : 7} className="table-td text-center text-gray-400 py-8">등록된 항목이 없습니다.</td></tr>
+            )}
+            {filtered.map(r => {
+              const hasBids = (bidCounts[r.id] ?? 0) > 0;
+              return (
               <tr key={r.id} className="border-t border-gray-100 hover:bg-gray-50">
                 <td className="table-td font-medium">
                   <span className="flex items-center gap-1.5">
@@ -157,8 +187,28 @@ export default function RequestsPage() {
                 <td className="table-td">
                   <button onClick={() => openDetail(r)} className="text-blue-600 hover:underline text-sm">보기</button>
                 </td>
+                {profile?.role === '직영' && (
+                  <td className="table-td">
+                    {hasBids ? (
+                      <span
+                        className="text-xs text-gray-300 cursor-not-allowed"
+                        title="입찰 기록이 있어 삭제할 수 없습니다"
+                      >
+                        삭제 불가
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => deleteRequest(r)}
+                        className="text-xs text-red-500 hover:text-red-700 hover:underline font-medium transition-colors"
+                      >
+                        삭제
+                      </button>
+                    )}
+                  </td>
+                )}
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>

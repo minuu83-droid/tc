@@ -66,7 +66,7 @@ export type Bid = {
   total_price: number;
   delivery_days: number | null;
   notes: string | null;
-  status: 'submitted' | 'won' | 'lost';
+  status: 'submitted' | 'won' | 'lost' | 'cancelled';
   supplier?: { name: string } | null;
   submitted_at: string;
 };

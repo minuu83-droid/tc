@@ -142,6 +142,14 @@ export default function BidsPage() {
     await loadData(profile);
   };
 
+  /* ── 입찰 취소 ── */
+  const cancelBid = async (bid: Bid) => {
+    if (!confirm('입찰 취소 시 해당 항목에 재입찰이 불가합니다.')) return;
+    const { error } = await supabase.from('bids').update({ status: 'cancelled' }).eq('id', bid.id);
+    if (error) { alert(`취소 실패: ${error.message}`); return; }
+    if (profile) await loadData(profile);
+  };
+
   if (!profile || loading) {
     return (
       <div className="flex items-center justify-center h-48">
@@ -190,6 +198,7 @@ export default function BidsPage() {
               const existingBid = myBids.find(b => b.request_id === req.id);
               const minPrice    = minPrices[req.id];
               const isLowest    = existingBid !== undefined
+                && existingBid.status !== 'cancelled'
                 && minPrice !== undefined
                 && existingBid.unit_price <= minPrice;
               const form        = bidForms[req.id] ?? defaultForm;
@@ -204,7 +213,11 @@ export default function BidsPage() {
                   key={req.id}
                   className={[
                     'card p-5 transition-shadow',
-                    existingBid ? 'border-l-4 border-green-400' : 'border-l-4 border-transparent',
+                    existingBid?.status === 'cancelled'
+                      ? 'border-l-4 border-red-300'
+                      : existingBid
+                        ? 'border-l-4 border-green-400'
+                        : 'border-l-4 border-transparent',
                   ].join(' ')}
                 >
                   {/* 품목 정보 */}
@@ -219,9 +232,11 @@ export default function BidsPage() {
                       </div>
                     </div>
                     <div className="flex flex-col items-end gap-1.5 shrink-0 ml-4">
-                      {existingBid
-                        ? <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-green-100 text-green-700">✓ 참여완료</span>
-                        : <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-blue-50 text-blue-600 border border-blue-200">입찰 가능</span>
+                      {existingBid?.status === 'cancelled'
+                        ? <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-red-100 text-red-600">입찰취소</span>
+                        : existingBid
+                          ? <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-green-100 text-green-700">✓ 참여완료</span>
+                          : <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-blue-50 text-blue-600 border border-blue-200">입찰 가능</span>
                       }
                       {minPrice !== undefined && (
                         <span className="text-xs text-gray-400">
@@ -237,8 +252,14 @@ export default function BidsPage() {
                     <ImageGallery urls={req.image_urls} />
                   </div>
 
-                  {existingBid ? (
-                    /* ── 참여완료 상세 ── */
+                  {existingBid?.status === 'cancelled' ? (
+                    /* ── 입찰 취소됨 ── */
+                    <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-center space-y-1">
+                      <p className="text-sm font-semibold text-red-700">🚫 입찰취소 (재입찰 불가)</p>
+                      <p className="text-xs text-red-500">취소한 입찰 건은 동일 요청에 재입찰하실 수 없습니다.</p>
+                    </div>
+                  ) : existingBid ? (
+                    /* ── 참여완료 상세 + 취소 버튼 ── */
                     <div className="bg-green-50 border border-green-200 rounded-xl p-4">
                       <div className="flex items-center justify-between gap-4">
                         <dl className="grid grid-cols-2 gap-x-8 gap-y-1 text-sm">
@@ -257,6 +278,15 @@ export default function BidsPage() {
                             <span className="text-xs font-bold text-blue-600 mt-1">현재 최저가</span>
                           </div>
                         )}
+                      </div>
+                      {/* 입찰 취소 버튼 */}
+                      <div className="mt-3 pt-3 border-t border-green-200 flex justify-end">
+                        <button
+                          onClick={() => cancelBid(existingBid)}
+                          className="text-xs text-red-500 hover:text-red-700 font-medium hover:underline transition-colors"
+                        >
+                          입찰 취소
+                        </button>
                       </div>
                     </div>
                   ) : (
