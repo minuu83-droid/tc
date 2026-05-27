@@ -5,9 +5,10 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { getSession } from '@/lib/auth';
 import { Item, Profile } from '@/lib/types';
+import { PARTS_LIST } from '@/lib/constants';
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-const MAX_IMAGES = 3;
+const MAX_IMAGES    = 3;
 
 export default function NewRequestPage() {
   const router = useRouter();
@@ -21,12 +22,16 @@ export default function NewRequestPage() {
     item_id: '', item_name: '', maker: '', spec: '',
     quantity: '', unit: 'EA', required_date: '', notes: '',
   });
+  const [requiredParts, setRequiredParts] = useState<string[]>([]);
   const [autoOrder, setAutoOrder] = useState(false);
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState('');
   const [imageFiles, setImageFiles]       = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [isDragging, setIsDragging]       = useState(false);
+
+  const togglePart = (part: string) =>
+    setRequiredParts(prev => prev.includes(part) ? prev.filter(p => p !== part) : [...prev, part]);
 
   useEffect(() => {
     const session = getSession();
@@ -156,8 +161,9 @@ export default function NewRequestPage() {
         requester_id: profile.id,
         company_id: profile.company_id,
         status: 'bidding',
-        notes: form.notes || null,
+        notes:          form.notes || null,
         image_urls,
+        required_parts: requiredParts.length > 0 ? requiredParts : null,
       });
       if (err) { setError(err.message); return; }
       router.push('/requests');
@@ -222,6 +228,36 @@ export default function NewRequestPage() {
           <div>
             <label className="label">비고</label>
             <textarea className="input resize-none h-20" value={form.notes} onChange={e => set('notes', e.target.value)} />
+          </div>
+
+          {/* ── 대상 파트 선택 ── */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="label mb-0">대상 파트 (납품협력사 지정)</label>
+              {requiredParts.length > 0 && (
+                <span className="text-xs text-purple-600 font-medium">{requiredParts.length}개 선택됨</span>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-x-5 gap-y-2 p-3 bg-purple-50 rounded-xl border border-purple-100">
+              {PARTS_LIST.map(part => (
+                <label key={part} className="flex items-center gap-1.5 cursor-pointer group">
+                  <input
+                    type="checkbox"
+                    checked={requiredParts.includes(part)}
+                    onChange={() => togglePart(part)}
+                    className="w-4 h-4 rounded border-purple-300 text-purple-600 focus:ring-purple-400"
+                  />
+                  <span className={`text-sm font-medium transition-colors ${
+                    requiredParts.includes(part) ? 'text-purple-800' : 'text-gray-500 group-hover:text-purple-700'
+                  }`}>
+                    {part}
+                  </span>
+                </label>
+              ))}
+            </div>
+            <p className="text-xs text-gray-400 mt-1">
+              선택하지 않으면 모든 납품협력사에게 공개됩니다. 선택 시 해당 파트 납품협력사만 입찰할 수 있습니다.
+            </p>
           </div>
 
           {/* ── 사진 첨부 (드래그 앤 드롭) ── */}

@@ -7,6 +7,7 @@ export type Profile = {
   username: string;
   role: Role;
   company_id: number | null;
+  parts?: string[] | null;
   company?: { name: string } | null;
   created_at: string;
 };
@@ -21,6 +22,7 @@ export type Company = {
   email: string | null;
   address: string | null;
   status: 'active' | 'inactive';
+  parts?: string[] | null;
   created_at: string;
 };
 
@@ -53,6 +55,7 @@ export type PurchaseRequest = {
   status: 'pending' | 'bidding' | 'awarded' | 'contracted' | 'completed' | 'cancelled';
   notes: string | null;
   image_urls: string[] | null;
+  required_parts: string[] | null;
   requester?: { name: string } | null;
   company?: { name: string } | null;
   created_at: string;
@@ -67,7 +70,7 @@ export type Bid = {
   delivery_days: number | null;
   notes: string | null;
   status: 'submitted' | 'won' | 'lost' | 'cancelled';
-  supplier?: { name: string } | null;
+  supplier?: { name: string; parts?: string[] | null } | null;
   submitted_at: string;
 };
 

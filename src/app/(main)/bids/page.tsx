@@ -27,13 +27,28 @@ export default function BidsPage() {
     setLoading(true);
 
     if (prof.role === '납품협력사') {
-      /* 1. 입찰 진행 중인 구매 요청 */
+      /* 0. 최신 파트 정보 조회 (세션 캐시 무시) */
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('parts')
+        .eq('id', prof.id)
+        .single();
+      const myParts = (profileData?.parts ?? []) as string[];
+
+      /* 1. 입찰 진행 중인 구매 요청 전체 조회 후 파트 필터링 */
       const { data: reqs } = await supabase
         .from('purchase_requests')
         .select('*')
         .eq('status', 'bidding')
         .order('created_at', { ascending: false });
-      const reqList = (reqs ?? []) as PurchaseRequest[];
+      const allReqs = (reqs ?? []) as PurchaseRequest[];
+
+      /* 파트 매칭: required_parts 없으면 전체 공개, 있으면 교집합 확인 */
+      const reqList = allReqs.filter(r => {
+        if (!r.required_parts || r.required_parts.length === 0) return true;
+        if (myParts.length === 0) return false;
+        return r.required_parts.some(p => myParts.includes(p));
+      });
       setRequests(reqList);
 
       /* 2. 내 입찰 내역 */
@@ -61,7 +76,7 @@ export default function BidsPage() {
         setMinPrices(mins);
       }
     } else {
-      /* 직영: 입찰 중인 구매 요청 목록 */
+      /* 직영/마스터관리자: 입찰 중인 구매 요청 목록 (required_parts 포함) */
       const { data } = await supabase
         .from('purchase_requests')
         .select('*, requester:profiles!requester_id(name), company:companies!company_id(name)')
@@ -246,6 +261,18 @@ export default function BidsPage() {
                     </div>
                   </div>
 
+                  {/* ── 대상 파트 태그 ── */}
+                  {req.required_parts && req.required_parts.length > 0 && (
+                    <div className="mb-3 flex items-center gap-2 flex-wrap">
+                      <span className="text-xs text-gray-400 shrink-0">대상 파트:</span>
+                      {req.required_parts.map(p => (
+                        <span key={p} className="text-xs bg-purple-100 text-purple-700 font-medium px-2 py-0.5 rounded-full">
+                          {p}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
                   {/* ── 첨부 사진 ── */}
                   <div className="mb-4 pt-3 border-t border-gray-100">
                     <p className="text-xs font-medium text-gray-400 mb-2">첨부 사진</p>
@@ -408,11 +435,12 @@ export default function BidsPage() {
             <th className="table-th">수량</th>
             <th className="table-th">필요일</th>
             <th className="table-th">요청자</th>
+            <th className="table-th">대상 파트</th>
           </tr>
         </thead>
         <tbody>
           {requests.length === 0 && (
-            <tr><td colSpan={4} className="table-td text-center text-gray-400 py-8">입찰 중인 항목 없음</td></tr>
+            <tr><td colSpan={5} className="table-td text-center text-gray-400 py-8">입찰 중인 항목 없음</td></tr>
           )}
           {requests.map(r => (
             <tr key={r.id} className="border-t border-gray-100 hover:bg-gray-50">
@@ -420,6 +448,19 @@ export default function BidsPage() {
               <td className="table-td">{r.quantity} {r.unit}</td>
               <td className="table-td">{r.required_date ?? '-'}</td>
               <td className="table-td">{(r.requester as { name: string } | null)?.name ?? '-'}</td>
+              <td className="table-td">
+                {r.required_parts && r.required_parts.length > 0 ? (
+                  <div className="flex flex-wrap gap-1">
+                    {r.required_parts.map(p => (
+                      <span key={p} className="text-[10px] bg-purple-100 text-purple-700 font-medium px-1.5 py-0.5 rounded-full">
+                        {p}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <span className="text-xs text-gray-400">전체 공개</span>
+                )}
+              </td>
             </tr>
           ))}
         </tbody>

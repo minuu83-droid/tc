@@ -73,7 +73,7 @@ export default function RequestsPage() {
     setDetail(r); setErr('');
     const { data } = await supabase
       .from('bids')
-      .select('*, supplier:companies!supplier_id(name)')
+      .select('*, supplier:companies!supplier_id(name, parts)')
       .eq('request_id', r.id)
       .order('unit_price');
     setBids((data ?? []) as Bid[]);
@@ -228,6 +228,18 @@ export default function RequestsPage() {
               {detail.notes && <div className="col-span-3"><span className="text-gray-500">비고</span><p>{detail.notes}</p></div>}
             </div>
 
+            {/* 대상 파트 */}
+            {detail.required_parts && detail.required_parts.length > 0 && (
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-semibold text-gray-500">대상 파트:</span>
+                {detail.required_parts.map(p => (
+                  <span key={p} className="text-xs bg-purple-100 text-purple-700 font-semibold px-2.5 py-1 rounded-full">
+                    {p}
+                  </span>
+                ))}
+              </div>
+            )}
+
             {/* 첨부 사진 */}
             <div className="bg-gray-50 rounded-lg p-4">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">첨부 사진</p>
@@ -241,18 +253,30 @@ export default function RequestsPage() {
               </div>
               <table className="w-full text-sm border rounded-lg overflow-hidden">
                 <thead><tr className="bg-gray-50">
-                  <th className="table-th">납품사</th><th className="table-th">단가</th>
-                  <th className="table-th">총액</th><th className="table-th">납기(일)</th>
+                  <th className="table-th">납품사</th><th className="table-th">파트</th>
+                  <th className="table-th">단가</th><th className="table-th">총액</th>
+                  <th className="table-th">납기(일)</th>
                   <th className="table-th">결과</th>
                   {canAward && <th className="table-th text-center">낙찰</th>}
                 </tr></thead>
                 <tbody>
-                  {bids.length === 0 && <tr><td colSpan={6} className="table-td text-center text-gray-400 py-4">입찰 없음</td></tr>}
-                  {bids.map(b => (
+                  {bids.length === 0 && <tr><td colSpan={7} className="table-td text-center text-gray-400 py-4">입찰 없음</td></tr>}
+                  {bids.map(b => {
+                    const sup = b.supplier as { name: string; parts?: string[] | null } | null;
+                    return (
                     <tr key={b.id} className={`border-t ${b.unit_price === minBid && bids.length>1 ? 'bg-green-50' : ''}`}>
                       <td className="table-td font-medium">
-                        {(b.supplier as {name:string}|null)?.name}
+                        {sup?.name}
                         {b.unit_price === minBid && bids.length>1 && <span className="ml-1 text-xs text-green-600 font-bold">최저가</span>}
+                      </td>
+                      <td className="table-td">
+                        {sup?.parts && sup.parts.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {sup.parts.map(p => (
+                              <span key={p} className="text-[10px] bg-purple-100 text-purple-700 font-medium px-1.5 py-0.5 rounded-full">{p}</span>
+                            ))}
+                          </div>
+                        ) : <span className="text-xs text-gray-300">-</span>}
                       </td>
                       <td className="table-td font-bold">{b.unit_price.toLocaleString()}원</td>
                       <td className="table-td">{b.total_price.toLocaleString()}원</td>
@@ -269,7 +293,8 @@ export default function RequestsPage() {
                         </td>
                       )}
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
