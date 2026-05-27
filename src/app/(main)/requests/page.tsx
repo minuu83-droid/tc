@@ -68,15 +68,18 @@ export default function RequestsPage() {
   const submitAward = async () => {
     if (!awardModal) return;
     setSaving(true); setErr('');
-    const { error } = await supabase.rpc('award_bid', {
-      p_bid_id: awardModal.id,
-      p_start_date: awardForm.start_date,
-      p_end_date: awardForm.end_date,
+    const { data, error } = await supabase.rpc('award_bid', {
+      p_bid_id:          awardModal.id,            // integer (bids.id)
+      p_created_by:      profile?.id ?? null,       // uuid   (profiles.id)
+      p_start_date:      awardForm.start_date,
+      p_end_date:        awardForm.end_date,
       p_prev_unit_price: awardForm.prev_unit_price ? Number(awardForm.prev_unit_price) : null,
-      p_created_by: profile?.id ?? null,
     });
     setSaving(false);
     if (error) { setErr(error.message); return; }
+    // 함수가 { error: '...' } JSONB를 반환하는 경우 처리
+    const result = data as { error?: string; contract_id?: number } | null;
+    if (result?.error) { setErr(result.error); return; }
     setAwardModal(null); setDetail(null); load();
     alert('낙찰 처리 완료! 계약이 생성되었습니다.');
   };
