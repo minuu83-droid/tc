@@ -127,9 +127,10 @@ export default function RequestsPage() {
   const STATUSES = ['all','pending','bidding','contracted','completed','cancelled'];
   const LABELS: Record<string,string> = { all:'전체', pending:'대기중', bidding:'입찰중', contracted:'계약완료', completed:'완료', cancelled:'취소' };
   const filtered = filter === 'all' ? requests : requests.filter(r => r.status === filter);
-  const minBid   = bids.length ? Math.min(...bids.map(b => b.unit_price)) : null;
-  const canBid   = detail && profile?.role === '납품협력사' && detail.status === 'bidding';
-  const canAward = detail && profile?.role === '직영' && detail.status === 'bidding' && bids.length > 0;
+  const minBid     = bids.length ? Math.min(...bids.map(b => b.unit_price)) : null;
+  const isOperator = profile?.role === '직영' || profile?.role === '마스터관리자';
+  const canBid     = detail && profile?.role === '납품협력사' && detail.status === 'bidding';
+  const canAward   = detail && isOperator && detail.status === 'bidding' && bids.length > 0;
 
   return (
     <div className="space-y-4">
@@ -155,12 +156,12 @@ export default function RequestsPage() {
               <th className="table-th">수량</th><th className="table-th">필요일</th>
               <th className="table-th">요청자</th><th className="table-th">상태</th>
               <th className="table-th">상세</th>
-              {profile?.role === '직영' && <th className="table-th">삭제</th>}
+              {isOperator && <th className="table-th">삭제</th>}
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 && (
-              <tr><td colSpan={profile?.role === '직영' ? 8 : 7} className="table-td text-center text-gray-400 py-8">등록된 항목이 없습니다.</td></tr>
+              <tr><td colSpan={isOperator ? 8 : 7} className="table-td text-center text-gray-400 py-8">등록된 항목이 없습니다.</td></tr>
             )}
             {filtered.map(r => {
               const hasBids = (bidCounts[r.id] ?? 0) > 0;
@@ -187,7 +188,7 @@ export default function RequestsPage() {
                 <td className="table-td">
                   <button onClick={() => openDetail(r)} className="text-blue-600 hover:underline text-sm">보기</button>
                 </td>
-                {profile?.role === '직영' && (
+                {isOperator && (
                   <td className="table-td">
                     {hasBids ? (
                       <span
@@ -243,7 +244,7 @@ export default function RequestsPage() {
                   <th className="table-th">납품사</th><th className="table-th">단가</th>
                   <th className="table-th">총액</th><th className="table-th">납기(일)</th>
                   <th className="table-th">결과</th>
-                  {canAward && <th className="table-th">낙찰</th>}
+                  {canAward && <th className="table-th text-center">낙찰</th>}
                 </tr></thead>
                 <tbody>
                   {bids.length === 0 && <tr><td colSpan={6} className="table-td text-center text-gray-400 py-4">입찰 없음</td></tr>}

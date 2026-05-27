@@ -109,7 +109,7 @@ export default function ContractsPage() {
               <th className="table-th">계약기간</th>
               <th className="table-th">잔여일</th>
               <th className="table-th">상태</th>
-              {profile?.role === '직영' && <th className="table-th">관리</th>}
+              {(profile?.role === '직영' || profile?.role === '마스터관리자') && <th className="table-th">관리</th>}
             </tr>
           </thead>
           <tbody>
@@ -138,7 +138,7 @@ export default function ContractsPage() {
                     ) : '-'}
                   </td>
                   <td className="table-td"><StatusBadge status={c.status} /></td>
-                  {profile?.role === '직영' && (
+                  {(profile?.role === '직영' || profile?.role === '마스터관리자') && (
                     <td className="table-td">
                       {c.status === 'active' && (
                         <button onClick={() => setTermModal(c)} className="text-sm text-red-500 hover:underline">해지</button>

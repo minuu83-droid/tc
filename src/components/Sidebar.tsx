@@ -12,13 +12,13 @@ type MenuItem = {
 };
 
 const menuItems: MenuItem[] = [
-  { href: '/dashboard', label: '대시보드',    icon: '📊', roles: ['직영', '사용협력사', '납품협력사'] },
-  { href: '/requests',  label: '신규 구매품 등록', icon: '📋', roles: ['직영', '사용협력사'] },
-  { href: '/bids',      label: '입찰 관리',   icon: '🏷️', roles: ['직영', '납품협력사'] },
-  { href: '/orders',    label: '발주 현황',   icon: '📦', roles: ['직영', '사용협력사', '납품협력사'] },
-  { href: '/contracts', label: '계약 이력',   icon: '📄', roles: ['직영', '납품협력사'] },
-  { href: '/items',     label: '품목 관리',   icon: '🔧', roles: ['직영', '사용협력사'] },
-  { href: '/partners',  label: '협력사 관리', icon: '🏢', roles: ['직영'] },
+  { href: '/dashboard', label: '대시보드',       icon: '📊', roles: ['마스터관리자', '직영', '사용협력사', '납품협력사'] },
+  { href: '/requests',  label: '신규 구매품 등록', icon: '📋', roles: ['마스터관리자', '직영', '사용협력사'] },
+  { href: '/bids',      label: '입찰 관리',       icon: '🏷️', roles: ['마스터관리자', '직영', '납품협력사'] },
+  { href: '/orders',    label: '발주 현황',       icon: '📦', roles: ['마스터관리자', '직영', '사용협력사', '납품협력사'] },
+  { href: '/contracts', label: '계약 이력',       icon: '📄', roles: ['마스터관리자', '직영', '납품협력사'] },
+  { href: '/items',     label: '품목 관리',       icon: '🔧', roles: ['마스터관리자', '직영', '사용협력사'] },
+  { href: '/partners',  label: '협력사 관리',     icon: '🏢', roles: ['마스터관리자', '직영'] },
 ];
 
 interface SidebarProps {
@@ -31,13 +31,14 @@ export default function Sidebar({ role, companyName, username }: SidebarProps) {
   const pathname = usePathname();
 
   const roleColors: Record<Role, string> = {
-    '직영':       'bg-blue-700',
-    '사용협력사': 'bg-green-700',
-    '납품협력사': 'bg-purple-700',
+    '마스터관리자': 'bg-red-700',
+    '직영':         'bg-blue-700',
+    '사용협력사':   'bg-green-700',
+    '납품협력사':   'bg-purple-700',
   };
 
-  const isAdmin = role === '직영';
-  const isAdminActive = pathname.startsWith('/admin');
+  const isMasterAdmin  = role === '마스터관리자';
+  const isAdminActive  = pathname.startsWith('/admin');
 
   return (
     <aside className="w-60 min-h-screen bg-gray-900 text-white flex flex-col">
@@ -48,9 +49,9 @@ export default function Sidebar({ role, companyName, username }: SidebarProps) {
           <span className={`inline-block px-2 py-0.5 text-xs rounded ${roleColors[role]}`}>
             {role}
           </span>
-          {isAdmin && (
-            <span className="inline-block px-2 py-0.5 text-xs rounded bg-yellow-600 text-white">
-              관리자
+          {isMasterAdmin && (
+            <span className="inline-block px-2 py-0.5 text-xs rounded bg-red-900 text-red-200 border border-red-600">
+              MASTER
             </span>
           )}
         </div>
@@ -91,11 +92,11 @@ export default function Sidebar({ role, companyName, username }: SidebarProps) {
           </ul>
         </div>
 
-        {/* 관리자 전용 메뉴 */}
-        {isAdmin && (
+        {/* 마스터관리자 전용 메뉴 */}
+        {isMasterAdmin && (
           <div>
             <p className="px-3 mb-2 text-[10px] font-semibold text-gray-500 uppercase tracking-widest">
-              관리자 메뉴
+              시스템 관리
             </p>
             <ul className="space-y-1">
               <li>
@@ -103,8 +104,8 @@ export default function Sidebar({ role, companyName, username }: SidebarProps) {
                   href="/admin/users"
                   className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
                     isAdminActive
-                      ? 'bg-yellow-600 text-white font-medium'
-                      : 'text-yellow-400 hover:bg-gray-800 hover:text-yellow-300'
+                      ? 'bg-red-700 text-white font-medium'
+                      : 'text-red-400 hover:bg-gray-800 hover:text-red-300'
                   }`}
                 >
                   <span>👤</span>

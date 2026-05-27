@@ -39,7 +39,7 @@ export default function ItemsPage() {
   const [renewSaving, setRenewSaving] = useState(false);
   const [renewErr,    setRenewErr]    = useState('');
 
-  const isAdmin = profile?.role === '직영';
+  const isAdmin = profile?.role === '직영' || profile?.role === '마스터관리자';
 
   useEffect(() => {
     const session = getSession();

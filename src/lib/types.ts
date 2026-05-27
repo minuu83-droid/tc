@@ -1,4 +1,4 @@
-export type Role = '직영' | '사용협력사' | '납품협력사';
+export type Role = '마스터관리자' | '직영' | '사용협력사' | '납품협력사';
 
 export type Profile = {
   id: string;

@@ -6,12 +6,13 @@ import { supabase } from '@/lib/supabase';
 import { getSession } from '@/lib/auth';
 import type { Role, Profile } from '@/lib/types';
 
-const ROLES: Role[] = ['직영', '사용협력사', '납품협력사'];
+const ROLES: Role[] = ['마스터관리자', '직영', '사용협력사', '납품협력사'];
 
 const ROLE_META: Record<Role, { color: string; bg: string; desc: string }> = {
-  '직영':       { color: 'text-blue-700',  bg: 'bg-blue-100',   desc: '전체 메뉴 + 낙찰 확정 + 계약 관리' },
-  '사용협력사': { color: 'text-green-700', bg: 'bg-green-100',  desc: '구매 요청 등록 + 발주 현황 조회' },
-  '납품협력사': { color: 'text-purple-700',bg: 'bg-purple-100', desc: '입찰 참여 + 납품 현황 조회' },
+  '마스터관리자': { color: 'text-red-700',    bg: 'bg-red-100',    desc: '전체 메뉴 + 사용자 관리 + 시스템 전체 설정' },
+  '직영':         { color: 'text-blue-700',   bg: 'bg-blue-100',   desc: '구매 등록 + 낙찰 확정 + 계약·발주 관리 (사용자 관리 불가)' },
+  '사용협력사':   { color: 'text-green-700',  bg: 'bg-green-100',  desc: '신규 구매품 등록 + 품목 관리 + 발주 현황' },
+  '납품협력사':   { color: 'text-purple-700', bg: 'bg-purple-100', desc: '입찰 참여 + 발주 현황 + 계약 이력' },
 };
 
 type UserRow = {
@@ -39,7 +40,7 @@ export default function AdminUsersPage() {
   useEffect(() => {
     const session = getSession();
     if (!session) { router.push('/login'); return; }
-    if (session.role !== '직영') { router.push('/dashboard'); return; }
+    if (session.role !== '마스터관리자') { router.push('/dashboard'); return; }
     setProfile(session);
   }, [router]);
 
@@ -116,7 +117,7 @@ export default function AdminUsersPage() {
       </div>
 
       {/* 역할 권한 안내 */}
-      <div className="grid grid-cols-3 gap-3 mb-6">
+      <div className="grid grid-cols-4 gap-3 mb-6">
         {ROLES.map(r => (
           <div key={r} className={`rounded-xl p-4 border ${ROLE_META[r].bg} border-transparent`}>
             <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full ${ROLE_META[r].bg} ${ROLE_META[r].color} border border-current/20 mb-2`}>
