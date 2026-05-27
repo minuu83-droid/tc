@@ -5,9 +5,15 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { getSession } from '@/lib/auth';
 import Modal from '@/components/Modal';
+import ImageGallery from '@/components/ImageGallery';
 import { Profile, Contract } from '@/lib/types';
 
 type Tab = '전체' | '일회성' | '기간계약';
+
+/* purchase_requests.image_urls 를 조인해서 가져온 확장 타입 */
+type ContractWithImages = Contract & {
+  request?: { image_urls: string[] | null } | null;
+};
 
 const today      = () => new Date();
 const daysLeft   = (end: string) => Math.ceil((new Date(end).getTime() - today().getTime()) / 86400000);
@@ -16,18 +22,18 @@ const toDateStr  = (d: Date)     => d.toISOString().slice(0, 10);
 export default function ItemsPage() {
   const router = useRouter();
   const [profile,   setProfile]   = useState<Profile | null>(null);
-  const [contracts, setContracts] = useState<Contract[]>([]);
+  const [contracts, setContracts] = useState<ContractWithImages[]>([]);
   const [loading,   setLoading]   = useState(true);
   const [tab,       setTab]       = useState<Tab>('전체');
 
   /* ── 발주 모달 ── */
-  const [orderTarget, setOrderTarget] = useState<Contract | null>(null);
+  const [orderTarget, setOrderTarget] = useState<ContractWithImages | null>(null);
   const [orderForm,   setOrderForm]   = useState({ quantity: '', required_date: '', notes: '' });
   const [orderSaving, setOrderSaving] = useState(false);
   const [orderErr,    setOrderErr]    = useState('');
 
   /* ── 갱신 모달 ── */
-  const [renewTarget, setRenewTarget] = useState<Contract | null>(null);
+  const [renewTarget, setRenewTarget] = useState<ContractWithImages | null>(null);
   const [renewPeriod, setRenewPeriod] = useState<'6m' | '1y' | null>(null);
   const [renewPrice,  setRenewPrice]  = useState('');
   const [renewSaving, setRenewSaving] = useState(false);
@@ -46,10 +52,10 @@ export default function ItemsPage() {
     setLoading(true);
     const { data } = await supabase
       .from('contracts')
-      .select('*, supplier:companies!supplier_id(name)')
+      .select('*, supplier:companies!supplier_id(name), request:purchase_requests!request_id(image_urls)')
       .eq('status', 'active')
       .order('created_at', { ascending: false });
-    setContracts((data ?? []) as Contract[]);
+    setContracts((data ?? []) as ContractWithImages[]);
     setLoading(false);
   }, []);
 
@@ -99,7 +105,7 @@ export default function ItemsPage() {
   };
 
   /* ── 재입찰: 새 구매 요청 생성 후 이동 ── */
-  const startReBid = async (c: Contract) => {
+  const startReBid = async (c: ContractWithImages) => {
     if (!profile) return;
     if (!confirm(`"${c.item_name}" 품목으로 재입찰을 시작하겠습니까?`)) return;
     const { error } = await supabase.from('purchase_requests').insert({
@@ -208,7 +214,7 @@ export default function ItemsPage() {
               <th className="table-th">계약 단가</th>
               <th className="table-th">유형</th>
               <th className="table-th">계약 기간</th>
-              <th className="table-th">잔여일</th>
+              <th className="table-th">사진</th>
               <th className="table-th text-center">액션</th>
             </tr>
           </thead>
@@ -222,24 +228,11 @@ export default function ItemsPage() {
                 </td>
               </tr>
             )}
-            {filtered.map(c => {
-              const d        = daysLeft(c.end_date);
-              const isExpiring = d >= 0 && d <= 30;
-              const isExpired  = d < 0;
-              return (
-                <tr key={c.id} className={`border-t border-gray-100 transition-colors ${
-                  isExpired ? 'bg-red-50/40' : isExpiring ? 'bg-orange-50/40' : 'hover:bg-gray-50'
-                }`}>
+            {filtered.map(c => (
+                <tr key={c.id} className="border-t border-gray-100 hover:bg-gray-50 transition-colors">
                   {/* 품목명 */}
                   <td className="table-td font-semibold text-gray-900">
                     {c.item_name}
-                    {(isExpiring || isExpired) && (
-                      <span className={`ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                        isExpired ? 'bg-red-200 text-red-700' : 'bg-orange-200 text-orange-700'
-                      }`}>
-                        {isExpired ? '만료' : '임박'}
-                      </span>
-                    )}
                   </td>
 
                   {/* 납품사 */}
@@ -270,14 +263,9 @@ export default function ItemsPage() {
                     {c.start_date} ~ {c.end_date}
                   </td>
 
-                  {/* 잔여일 */}
-                  <td className="table-td text-center">
-                    {isExpired
-                      ? <span className="text-xs font-bold text-red-600">만료됨</span>
-                      : <span className={`text-xs font-bold ${
-                          d <= 7 ? 'text-red-600' : d <= 30 ? 'text-orange-500' : 'text-gray-500'
-                        }`}>{d}일</span>
-                    }
+                  {/* 사진 */}
+                  <td className="table-td">
+                    <ImageGallery urls={c.request?.image_urls} emptyText="사진 없음" />
                   </td>
 
                   {/* 액션 */}
@@ -311,8 +299,7 @@ export default function ItemsPage() {
                     </div>
                   </td>
                 </tr>
-              );
-            })}
+            ))}
           </tbody>
         </table>
       </div>
