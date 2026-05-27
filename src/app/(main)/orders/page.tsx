@@ -11,11 +11,12 @@ const toDateStr = (d: Date) => d.toISOString().slice(0, 10);
 
 // 역할별 상태 처리 흐름
 const FLOW_ADMIN:    Record<string, string> = { ordered:'processing', processing:'shipped', shipped:'delivered' };
-const FLOW_SUPPLIER: Record<string, string> = { ordered:'shipped', shipped:'delivered' };
+// 납품협력사: ordered·processing 모두 → shipped 가능 (직영이 처리중으로 먼저 바꿔도 배송중 전환 가능)
+const FLOW_SUPPLIER: Record<string, string> = { ordered:'shipped', processing:'shipped', shipped:'delivered' };
 
 // 역할별 버튼 라벨
 const LABEL_ADMIN:    Record<string, string> = { ordered:'처리중으로', processing:'배송중으로', shipped:'납품완료로' };
-const LABEL_SUPPLIER: Record<string, string> = { ordered:'배송중으로', shipped:'납품완료로' };
+const LABEL_SUPPLIER: Record<string, string> = { ordered:'배송중으로 변경', processing:'배송중으로 변경', shipped:'납품완료 처리' };
 
 const STATUSES = ['all','ordered','processing','shipped','delivered','cancelled'];
 const SLABELS: Record<string,string> = {
@@ -158,14 +159,16 @@ export default function OrdersPage() {
                 <td className="table-td"><StatusBadge status={o.status} /></td>
                 {showProcessCol && (
                   <td className="table-td">
-                    {statusFlow[o.status] && (
+                    {o.status === 'delivered' ? (
+                      <span className="text-xs font-semibold text-green-600">✓ 완료</span>
+                    ) : statusFlow[o.status] ? (
                       <button
                         onClick={() => openModal(o)}
                         className="px-2.5 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors whitespace-nowrap"
                       >
                         {statusLabel[o.status]}
                       </button>
-                    )}
+                    ) : null}
                   </td>
                 )}
               </tr>
