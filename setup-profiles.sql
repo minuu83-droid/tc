@@ -70,6 +70,54 @@ END;
 $$;
 
 -- ================================================================
+-- update_user_role RPC (관리자 역할 변경)
+-- 주의: p_requester_id, p_target_id 는 UUID 타입 — TEXT 로 선언하면
+--       "operator does not exist: uuid = text" 오류 발생
+-- ================================================================
+
+DROP FUNCTION IF EXISTS update_user_role(TEXT, TEXT, TEXT);
+DROP FUNCTION IF EXISTS update_user_role(UUID, UUID, TEXT);
+
+CREATE FUNCTION update_user_role(
+  p_requester_id UUID,
+  p_target_id    UUID,
+  p_new_role     TEXT
+)
+RETURNS JSON
+LANGUAGE plpgsql SECURITY DEFINER
+AS $$
+DECLARE
+  v_requester_role TEXT;
+BEGIN
+  SELECT role INTO v_requester_role FROM profiles WHERE id = p_requester_id;
+
+  IF v_requester_role IS NULL THEN
+    RETURN json_build_object('error', '요청자를 찾을 수 없습니다.');
+  END IF;
+
+  IF v_requester_role != '직영' THEN
+    RETURN json_build_object('error', '관리자 권한이 필요합니다.');
+  END IF;
+
+  IF p_new_role NOT IN ('직영', '사용협력사', '납품협력사') THEN
+    RETURN json_build_object('error', '유효하지 않은 역할입니다.');
+  END IF;
+
+  UPDATE profiles SET role = p_new_role WHERE id = p_target_id;
+
+  IF NOT FOUND THEN
+    RETURN json_build_object('error', '대상 사용자를 찾을 수 없습니다.');
+  END IF;
+
+  RETURN json_build_object('success', true, 'message', '역할이 변경되었습니다.');
+END;
+$$;
+
+-- RLS 정책 (anon 포함 전체 허용 — Supabase Auth 미사용 앱)
+-- CREATE POLICY "admin_read_profiles"   ON profiles FOR SELECT USING (true);
+-- CREATE POLICY "admin_update_profiles" ON profiles FOR UPDATE USING (true);
+
+-- ================================================================
 -- 확인 쿼리
 -- ================================================================
 
