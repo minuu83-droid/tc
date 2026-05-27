@@ -46,12 +46,23 @@ export default function AdminUsersPage() {
   /* ── 유저 목록 조회 ── */
   const fetchUsers = useCallback(async () => {
     setLoading(true);
-    const { data, error: err } = await supabase
+    setError('');
+
+    const { data, error: err, status, statusText } = await supabase
       .from('profiles')
       .select('id, name, email, username, role, company_id, created_at')
       .order('created_at');
-    if (err) { setError(err.message); setLoading(false); return; }
+
+    if (err) {
+      console.error('[AdminUsers] profiles 조회 실패:', { err, status, statusText });
+      setError(`데이터 조회 실패 (${status}): ${err.message}`);
+      setLoading(false);
+      return;
+    }
+
     const rows = (data ?? []) as UserRow[];
+    console.log(`[AdminUsers] profiles 조회 성공: ${rows.length}명`);
+
     setUsers(rows);
     setRoleMap(Object.fromEntries(rows.map(u => [u.id, u.role])));
     setLoading(false);
@@ -219,7 +230,12 @@ export default function AdminUsersPage() {
         </table>
 
         {users.length === 0 && !loading && (
-          <div className="text-center py-12 text-gray-400 text-sm">등록된 사용자가 없습니다.</div>
+          <div className="text-center py-12 text-sm">
+            {error
+              ? <span className="text-red-400">데이터를 불러오지 못했습니다. 위 오류 메시지를 확인하세요.</span>
+              : <span className="text-gray-400">등록된 사용자가 없습니다.</span>
+            }
+          </div>
         )}
       </div>
 
