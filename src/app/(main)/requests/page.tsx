@@ -7,6 +7,7 @@ import { getSession } from '@/lib/auth';
 import StatusBadge from '@/components/StatusBadge';
 import Modal from '@/components/Modal';
 import { PurchaseRequest, Bid, Profile } from '@/lib/types';
+import ImageGallery from '@/components/ImageGallery';
 
 export default function RequestsPage() {
   const [profile, setProfile]   = useState<Profile | null>(null);
@@ -121,7 +122,19 @@ export default function RequestsPage() {
             {filtered.length === 0 && <tr><td colSpan={7} className="table-td text-center text-gray-400 py-8">구매 요청이 없습니다.</td></tr>}
             {filtered.map(r => (
               <tr key={r.id} className="border-t border-gray-100 hover:bg-gray-50">
-                <td className="table-td font-medium">{r.item_name}</td>
+                <td className="table-td font-medium">
+                  <span className="flex items-center gap-1.5">
+                    {r.item_name}
+                    {r.image_urls && r.image_urls.length > 0 && (
+                      <span
+                        className="inline-flex items-center gap-0.5 text-[10px] text-blue-500 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded-full font-normal"
+                        title={`사진 ${r.image_urls.length}장 첨부`}
+                      >
+                        📷 {r.image_urls.length}
+                      </span>
+                    )}
+                  </span>
+                </td>
                 <td className="table-td text-gray-500">{[r.maker, r.spec].filter(Boolean).join(' / ') || '-'}</td>
                 <td className="table-td">{r.quantity.toLocaleString()} {r.unit}</td>
                 <td className="table-td">{r.required_date ?? '-'}</td>
@@ -148,6 +161,12 @@ export default function RequestsPage() {
               <div><span className="text-gray-500">필요일</span><p>{detail.required_date ?? '-'}</p></div>
               <div><span className="text-gray-500">상태</span><p><StatusBadge status={detail.status} /></p></div>
               {detail.notes && <div className="col-span-3"><span className="text-gray-500">비고</span><p>{detail.notes}</p></div>}
+            </div>
+
+            {/* 첨부 사진 */}
+            <div className="bg-gray-50 rounded-lg p-4">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">첨부 사진</p>
+              <ImageGallery urls={detail.image_urls} />
             </div>
 
             <div>

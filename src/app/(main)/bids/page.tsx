@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { getSession } from '@/lib/auth';
 import StatusBadge from '@/components/StatusBadge';
 import { Profile, PurchaseRequest, Bid } from '@/lib/types';
+import ImageGallery from '@/components/ImageGallery';
 
 /* ── 입찰 폼 상태 타입 ── */
 type BidForm = { unit_price: string; delivery_date: string; notes: string };
@@ -228,6 +229,12 @@ export default function BidsPage() {
                         </span>
                       )}
                     </div>
+                  </div>
+
+                  {/* ── 첨부 사진 ── */}
+                  <div className="mb-4 pt-3 border-t border-gray-100">
+                    <p className="text-xs font-medium text-gray-400 mb-2">첨부 사진</p>
+                    <ImageGallery urls={req.image_urls} />
                   </div>
 
                   {existingBid ? (
