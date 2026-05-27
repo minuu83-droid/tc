@@ -20,13 +20,21 @@ export default function ContractsPage() {
   }, []);
 
   const load = useCallback(async () => {
+    if (!profile) return;
     await supabase.rpc('expire_contracts');
-    const { data } = await supabase
+    let query = supabase
       .from('contracts')
       .select('*, supplier:companies!supplier_id(name)')
       .order('created_at', { ascending: false });
+
+    // 납품협력사: 본인 회사(supplier_id)가 낙찰된 계약만 표시
+    if (profile.role === '납품협력사' && profile.company_id) {
+      query = query.eq('supplier_id', profile.company_id);
+    }
+
+    const { data } = await query;
     setContracts((data ?? []) as Contract[]);
-  }, []);
+  }, [profile]);
 
   useEffect(() => { load(); }, [load]);
 
