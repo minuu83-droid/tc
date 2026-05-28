@@ -103,13 +103,26 @@ export default function Sidebar({ role, companyName, username }: SidebarProps) {
                 <Link
                   href="/admin/users"
                   className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
-                    isAdminActive
+                    pathname === '/admin/users' || pathname.startsWith('/admin/users/')
                       ? 'bg-red-700 text-white font-medium'
                       : 'text-red-400 hover:bg-gray-800 hover:text-red-300'
                   }`}
                 >
                   <span>👤</span>
                   <span>사용자 관리</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/admin/suppliers"
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
+                    pathname === '/admin/suppliers' || pathname.startsWith('/admin/suppliers/')
+                      ? 'bg-red-700 text-white font-medium'
+                      : 'text-red-400 hover:bg-gray-800 hover:text-red-300'
+                  }`}
+                >
+                  <span>🏭</span>
+                  <span>납품협력사 관리</span>
                 </Link>
               </li>
             </ul>
