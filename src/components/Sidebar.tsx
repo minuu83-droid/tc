@@ -2,6 +2,8 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { supabase } from '@/lib/supabase';
 import type { Role } from '@/lib/types';
 
 type MenuItem = {
@@ -12,23 +14,47 @@ type MenuItem = {
 };
 
 const menuItems: MenuItem[] = [
-  { href: '/dashboard', label: '대시보드',       icon: '📊', roles: ['마스터관리자', '직영', '사용협력사', '납품협력사'] },
+  { href: '/dashboard', label: '대시보드',        icon: '📊', roles: ['마스터관리자', '직영', '사용협력사', '납품협력사'] },
   { href: '/requests',  label: '신규 구매품 등록', icon: '📋', roles: ['마스터관리자', '직영', '사용협력사'] },
-  { href: '/bids',      label: '입찰 관리',       icon: '🏷️', roles: ['마스터관리자', '직영', '납품협력사'] },
-  { href: '/orders',    label: '발주 현황',       icon: '📦', roles: ['마스터관리자', '직영', '사용협력사', '납품협력사'] },
-  { href: '/contracts', label: '계약 이력',       icon: '📄', roles: ['마스터관리자', '직영', '납품협력사'] },
-  { href: '/items',     label: '품목 관리',       icon: '🔧', roles: ['마스터관리자', '직영', '사용협력사'] },
-  { href: '/partners',  label: '협력사 관리',     icon: '🏢', roles: ['마스터관리자', '직영'] },
+  { href: '/bids',      label: '입찰 관리',        icon: '🏷️', roles: ['마스터관리자', '납품협력사'] },
+  { href: '/orders',    label: '발주 현황',        icon: '📦', roles: ['마스터관리자', '직영', '사용협력사', '납품협력사'] },
+  { href: '/contracts', label: '계약 이력',        icon: '📄', roles: ['마스터관리자', '납품협력사'] },
+  { href: '/items',     label: '품목 관리',        icon: '🔧', roles: ['마스터관리자', '직영', '사용협력사'] },
+  { href: '/partners',  label: '협력사 관리',      icon: '🏢', roles: ['마스터관리자'] },
 ];
 
 interface SidebarProps {
   role: Role;
+  isApprover?: boolean;
   companyName?: string | null;
   username?: string | null;
 }
 
-export default function Sidebar({ role, companyName, username }: SidebarProps) {
+export default function Sidebar({ role, isApprover = false, companyName, username }: SidebarProps) {
   const pathname = usePathname();
+  const [pendingCount, setPendingCount] = useState(0);
+
+  /* 결재자인 경우 결재대기 건수 실시간 조회 */
+  useEffect(() => {
+    if (!isApprover) return;
+
+    const fetch = async () => {
+      const { count } = await supabase
+        .from('orders')
+        .select('id', { count: 'exact', head: true })
+        .eq('approval_status', '결재대기');
+      setPendingCount(count ?? 0);
+    };
+
+    fetch();
+
+    const channel = supabase
+      .channel('approval-pending')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, fetch)
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [isApprover]);
 
   const roleColors: Record<Role, string> = {
     '마스터관리자': 'bg-red-700',
@@ -37,8 +63,7 @@ export default function Sidebar({ role, companyName, username }: SidebarProps) {
     '납품협력사':   'bg-purple-700',
   };
 
-  const isMasterAdmin  = role === '마스터관리자';
-  const isAdminActive  = pathname.startsWith('/admin');
+  const isMasterAdmin = role === '마스터관리자';
 
   return (
     <aside className="w-60 min-h-screen bg-gray-900 text-white flex flex-col">
@@ -52,6 +77,11 @@ export default function Sidebar({ role, companyName, username }: SidebarProps) {
           {isMasterAdmin && (
             <span className="inline-block px-2 py-0.5 text-xs rounded bg-red-900 text-red-200 border border-red-600">
               MASTER
+            </span>
+          )}
+          {isApprover && (
+            <span className="inline-block px-2 py-0.5 text-xs rounded bg-blue-900 text-blue-200 border border-blue-600">
+              결재자
             </span>
           )}
         </div>
@@ -91,6 +121,35 @@ export default function Sidebar({ role, companyName, username }: SidebarProps) {
               })}
           </ul>
         </div>
+
+        {/* 결재자 전용 메뉴 */}
+        {isApprover && (
+          <div>
+            <p className="px-3 mb-2 text-[10px] font-semibold text-gray-500 uppercase tracking-widest">
+              결재
+            </p>
+            <ul className="space-y-1">
+              <li>
+                <Link
+                  href="/approval"
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
+                    pathname === '/approval' || pathname.startsWith('/approval/')
+                      ? 'bg-orange-600 text-white font-medium'
+                      : 'text-orange-400 hover:bg-gray-800 hover:text-orange-300'
+                  }`}
+                >
+                  <span>✅</span>
+                  <span className="flex-1">결재 관리</span>
+                  {pendingCount > 0 && (
+                    <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 bg-orange-500 text-white text-[10px] font-bold rounded-full">
+                      {pendingCount}
+                    </span>
+                  )}
+                </Link>
+              </li>
+            </ul>
+          </div>
+        )}
 
         {/* 마스터관리자 전용 메뉴 */}
         {isMasterAdmin && (

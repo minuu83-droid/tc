@@ -8,6 +8,7 @@ export type Profile = {
   role: Role;
   company_id: number | null;
   parts?: string[] | null;
+  is_approver?: boolean;
   company?: { name: string } | null;
   created_at: string;
 };
@@ -108,6 +109,10 @@ export type Order = {
   supplier_id: number | null;
   is_auto: boolean;
   status: 'ordered' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
+  approval_status: string | null;
+  approver_id: string | null;
+  approved_at: string | null;
+  rejection_reason: string | null;
   required_date: string | null;
   delivery_date: string | null;
   notes: string | null;

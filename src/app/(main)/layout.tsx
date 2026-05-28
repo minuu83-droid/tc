@@ -8,15 +8,17 @@ import { getSession } from '@/lib/auth';
 import { Profile } from '@/lib/types';
 
 const PAGE_TITLES: Record<string, string> = {
-  '/dashboard':    '대시보드',
-  '/requests':     '신규 구매품 등록',
-  '/requests/new': '신규 구매품 등록',
-  '/bids':         '입찰 관리',
-  '/orders':       '발주 현황',
-  '/contracts':    '계약 이력',
-  '/items':        '품목 관리',
-  '/partners':     '협력사 관리',
-  '/admin/users':  '사용자 관리',
+  '/dashboard':        '대시보드',
+  '/requests':         '신규 구매품 등록',
+  '/requests/new':     '신규 구매품 등록',
+  '/bids':             '입찰 관리',
+  '/orders':           '발주 현황',
+  '/contracts':        '계약 이력',
+  '/items':            '품목 관리',
+  '/partners':         '협력사 관리',
+  '/approval':         '결재 관리',
+  '/admin/users':      '사용자 관리',
+  '/admin/suppliers':  '납품협력사 관리',
 };
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
@@ -44,6 +46,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     <div className="flex min-h-screen">
       <Sidebar
         role={profile.role}
+        isApprover={profile.is_approver ?? false}
         companyName={(profile.company as { name: string } | null)?.name}
         username={profile.username}
       />

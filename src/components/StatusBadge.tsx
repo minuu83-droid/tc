@@ -3,9 +3,13 @@ type BadgeVariant =
   | 'submitted' | 'won' | 'lost'
   | 'ordered' | 'processing' | 'shipped' | 'delivered'
   | 'active' | 'expired' | 'terminated'
-  | 'active_co' | 'inactive';
+  | 'active_co' | 'inactive'
+  | '결재대기' | '반려' | '승인';
 
 const variantMap: Record<BadgeVariant, { label: string; cls: string }> = {
+  '결재대기':  { label: '결재대기', cls: 'bg-orange-100 text-orange-700' },
+  '반려':      { label: '반려',     cls: 'bg-red-100 text-red-700' },
+  '승인':      { label: '승인완료', cls: 'bg-green-100 text-green-700' },
   pending:    { label: '대기중',   cls: 'bg-gray-100 text-gray-700' },
   bidding:    { label: '입찰중',   cls: 'bg-blue-100 text-blue-700' },
   awarded:    { label: '낙찰완료', cls: 'bg-indigo-100 text-indigo-700' },
