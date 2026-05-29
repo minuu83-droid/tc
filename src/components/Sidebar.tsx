@@ -94,11 +94,8 @@ export default function Sidebar({ role, isApprover = false, companyName, usernam
             </span>
           )}
         </div>
-        {companyName && (
-          <p className="mt-1 text-xs text-gray-400 truncate">{companyName}</p>
-        )}
         {username && (
-          <p className="mt-0.5 text-xs text-gray-500">@{username}</p>
+          <p className="mt-1 text-xs text-gray-500">@{username}</p>
         )}
       </div>
 

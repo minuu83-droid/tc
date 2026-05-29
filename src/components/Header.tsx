@@ -136,18 +136,8 @@ export default function Header({ profile, title }: { profile: Profile; title: st
             </button>
           )}
 
-          {/* Desktop: user info + logout */}
-          <div className="hidden lg:block text-right">
-            <p className="text-sm font-medium text-gray-800">{profile.name}</p>
-            <p className="text-xs text-gray-500">
-              {(profile.company as { name: string } | null)?.name ?? profile.role}
-              {(profile.role === '직영관리자' || profile.is_approver) && (
-                <span className="ml-1 text-orange-600 font-medium">
-                  {profile.role === '직영관리자' ? '· 관리자' : '· 결재자'}
-                </span>
-              )}
-            </p>
-          </div>
+          {/* Desktop: 이름 */}
+          <p className="hidden lg:block text-sm font-medium text-gray-800">{profile.name}</p>
           <button onClick={handleLogout}
             className="hidden lg:block px-3 py-1.5 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
             로그아웃
