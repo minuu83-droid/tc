@@ -149,7 +149,7 @@ function LoginForm({
             autoFocus
             autoComplete="username"
             className="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none transition-all"
-            onFocus={e => (e.target.style.borderColor = '#2D6A4F')}
+            onFocus={e => (e.target.style.borderColor = '#607D74')}
             onBlur={e => (e.target.style.borderColor = '#d1d5db')}
           />
         </div>
@@ -166,7 +166,7 @@ function LoginForm({
             required
             autoComplete="current-password"
             className="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none transition-all"
-            onFocus={e => (e.target.style.borderColor = '#2D6A4F')}
+            onFocus={e => (e.target.style.borderColor = '#607D74')}
             onBlur={e => (e.target.style.borderColor = '#d1d5db')}
           />
         </div>
@@ -182,9 +182,9 @@ function LoginForm({
             type="submit"
             disabled={loading}
             className="w-full py-3 text-sm font-bold text-white rounded-lg transition-all disabled:opacity-60 disabled:cursor-not-allowed tracking-widest"
-            style={{ backgroundColor: '#2D6A4F' }}
-            onMouseEnter={e => { if (!loading) (e.currentTarget.style.backgroundColor = '#245a42'); }}
-            onMouseLeave={e => { if (!loading) (e.currentTarget.style.backgroundColor = '#2D6A4F'); }}
+            style={{ backgroundColor: '#607D74' }}
+            onMouseEnter={e => { if (!loading) (e.currentTarget.style.backgroundColor = '#4f6860'); }}
+            onMouseLeave={e => { if (!loading) (e.currentTarget.style.backgroundColor = '#607D74'); }}
           >
             {loading ? '로그인 중...' : 'LOGIN'}
           </button>
