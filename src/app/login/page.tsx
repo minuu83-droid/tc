@@ -44,7 +44,7 @@ export default function LoginPage() {
     /* 전체 페이지 배경 */
     <div
       className="min-h-screen flex items-center justify-center p-6"
-      style={{ backgroundColor: '#F0F0EA' }}
+      style={{ backgroundColor: '#E7E1D8' }}
     >
       {/* ── 데스크탑: 중앙 카드 ── */}
       <div
