@@ -45,7 +45,7 @@ export default function Header({ profile, title }: { profile: Profile; title: st
           .select('id', { count: 'exact', head: true })
           .eq('ordered_by', profile.id)
           .in('approval_status', ['승인', '반려'])
-          .gt('approved_at', seenAt);
+          .gt('approval_date', seenAt);
         const n = count ?? 0;
 
         if (n > prevCount.current && prevCount.current !== -1) {

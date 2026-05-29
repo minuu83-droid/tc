@@ -39,7 +39,7 @@ export default function ApprovalPage() {
     const { data, error: err } = await supabase
       .from('orders')
       .select('*, orderer:profiles!ordered_by(name), supplier:companies!supplier_id(name)')
-      .not('approval_status', 'is', null)
+      .neq('approval_status', '미해당')
       .order('created_at', { ascending: false });
 
     if (err) {
@@ -63,7 +63,7 @@ export default function ApprovalPage() {
       .update({
         approval_status: '승인',
         approver_id:     profile.id,
-        approved_at:     new Date().toISOString(),
+        approval_date:   new Date().toISOString(),
       })
       .eq('id', order.id);
 
@@ -88,7 +88,7 @@ export default function ApprovalPage() {
         approval_status:  '반려',
         rejection_reason: rejectReason.trim(),
         approver_id:      profile.id,
-        approved_at:      new Date().toISOString(),
+        approval_date:    new Date().toISOString(),
       })
       .eq('id', rejectTarget.id);
 
@@ -255,10 +255,10 @@ export default function ApprovalPage() {
                   </div>
                 )}
 
-                {/* 이력: 처리자 + 일시 */}
-                {order.approval_status !== '결재대기' && order.approved_at && (
+                {/* 이력: 처리 일시 */}
+                {order.approval_status !== '결재대기' && order.approval_date && (
                   <div className="text-right text-xs text-gray-400 shrink-0">
-                    <p>처리일: {order.approved_at.slice(0, 10)}</p>
+                    <p>처리일: {order.approval_date.slice(0, 10)}</p>
                   </div>
                 )}
               </div>

@@ -111,7 +111,7 @@ export type Order = {
   status: 'ordered' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
   approval_status: string | null;
   approver_id: string | null;
-  approved_at: string | null;
+  approval_date: string | null;
   rejection_reason: string | null;
   required_date: string | null;
   delivery_date: string | null;
