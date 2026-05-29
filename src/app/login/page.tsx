@@ -56,7 +56,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-900 to-blue-700 flex items-center justify-center p-4">
-      <div className="w-full max-w-4xl flex gap-6">
+      <div className="w-full max-w-4xl flex flex-col lg:flex-row gap-6">
 
         {/* 로그인 폼 */}
         <div className="flex-1 bg-white rounded-2xl shadow-2xl p-8">
@@ -110,7 +110,7 @@ export default function LoginPage() {
         </div>
 
         {/* 테스트 계정 */}
-        <div className="w-72 bg-white/10 backdrop-blur rounded-2xl p-6 text-white">
+        <div className="w-full lg:w-72 bg-white/10 backdrop-blur rounded-2xl p-6 text-white">
           <h3 className="font-semibold mb-4 text-lg">테스트 계정</h3>
           <div className="space-y-3">
             {DEMO_ACCOUNTS.map(acc => (

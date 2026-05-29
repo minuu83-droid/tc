@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
+import MobileBottomNav from '@/components/MobileBottomNav';
 import { getSession } from '@/lib/auth';
 import { Profile } from '@/lib/types';
 
@@ -43,17 +44,30 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   const title = PAGE_TITLES[pathname] ?? '현장 소모품 구매 시스템';
 
   return (
-    <div className="flex min-h-screen">
-      <Sidebar
+    <>
+      <div className="flex min-h-screen">
+        {/* Sidebar: desktop only */}
+        <div className="hidden lg:block">
+          <Sidebar
+            role={profile.role}
+            isApprover={profile.is_approver ?? false}
+            companyName={(profile.company as { name: string } | null)?.name}
+            username={profile.username}
+          />
+        </div>
+        <div className="flex-1 flex flex-col min-w-0">
+          <Header profile={profile} title={title} />
+          {/* pb-20 on mobile for bottom nav clearance */}
+          <main className="flex-1 p-4 lg:p-6 overflow-auto pb-24 lg:pb-6">{children}</main>
+        </div>
+      </div>
+
+      {/* Mobile bottom navigation */}
+      <MobileBottomNav
         role={profile.role}
         isApprover={profile.is_approver ?? false}
-        companyName={(profile.company as { name: string } | null)?.name}
-        username={profile.username}
+        profileName={profile.name}
       />
-      <div className="flex-1 flex flex-col min-w-0">
-        <Header profile={profile} title={title} />
-        <main className="flex-1 p-6 overflow-auto">{children}</main>
-      </div>
-    </div>
+    </>
   );
 }

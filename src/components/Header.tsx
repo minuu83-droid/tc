@@ -113,11 +113,11 @@ export default function Header({ profile, title }: { profile: Profile; title: st
         </div>
       )}
 
-      <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6 flex-shrink-0">
-        <h2 className="text-xl font-semibold text-gray-800">{title}</h2>
-        <div className="flex items-center gap-4">
+      <header className="h-14 lg:h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 lg:px-6 flex-shrink-0">
+        <h2 className="text-base lg:text-xl font-semibold text-gray-800 truncate">{title}</h2>
+        <div className="flex items-center gap-2 lg:gap-4">
 
-          {/* 알림 벨 (직영만) */}
+          {/* 알림 벨 */}
           {(isApprover || isDirectWorker) && (
             <button
               onClick={handleBellClick}
@@ -136,7 +136,8 @@ export default function Header({ profile, title }: { profile: Profile; title: st
             </button>
           )}
 
-          <div className="text-right">
+          {/* Desktop: user info + logout */}
+          <div className="hidden lg:block text-right">
             <p className="text-sm font-medium text-gray-800">{profile.name}</p>
             <p className="text-xs text-gray-500">
               {(profile.company as { name: string } | null)?.name ?? profile.role}
@@ -148,9 +149,12 @@ export default function Header({ profile, title }: { profile: Profile; title: st
             </p>
           </div>
           <button onClick={handleLogout}
-            className="px-3 py-1.5 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+            className="hidden lg:block px-3 py-1.5 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
             로그아웃
           </button>
+
+          {/* Mobile: user name only */}
+          <span className="lg:hidden text-sm font-medium text-gray-700">{profile.name}</span>
         </div>
       </header>
     </>

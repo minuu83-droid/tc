@@ -12,7 +12,8 @@ const MAX_IMAGES    = 3;
 
 export default function NewRequestPage() {
   const router = useRouter();
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef   = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
   const dragCounter = useRef(0);
 
@@ -260,7 +261,7 @@ export default function NewRequestPage() {
             </p>
           </div>
 
-          {/* ── 사진 첨부 (드래그 앤 드롭) ── */}
+          {/* ── 사진 첨부 (드래그 앤 드롭 + 모바일 카메라) ── */}
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="label mb-0">사진 첨부</label>
@@ -269,7 +270,30 @@ export default function NewRequestPage() {
               </span>
             </div>
 
-            {/* 드롭 존 */}
+            {/* 모바일: 갤러리 / 카메라 버튼 */}
+            <div className="lg:hidden flex gap-3 mb-3">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isFull}
+                className="flex-1 flex items-center justify-center gap-2 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-600 active:bg-gray-100 disabled:opacity-40 transition-colors"
+              >
+                <span>🖼️</span>
+                <span>갤러리 선택</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => cameraInputRef.current?.click()}
+                disabled={isFull}
+                className="flex-1 flex items-center justify-center gap-2 py-3 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-600 active:bg-blue-100 disabled:opacity-40 transition-colors"
+              >
+                <span>📷</span>
+                <span>카메라 촬영</span>
+              </button>
+            </div>
+
+            {/* 데스크탑: 드롭 존 */}
+            <div className="hidden lg:block">
             <div
               ref={dropZoneRef}
               onDragEnter={handleDragEnter}
@@ -329,8 +353,9 @@ export default function NewRequestPage() {
                 )}
               </div>
             </div>
+            </div>{/* end hidden lg:block */}
 
-            {/* 썸네일 미리보기 */}
+            {/* 썸네일 미리보기 (모바일/데스크탑 공통) */}
             {imagePreviews.length > 0 && (
               <div className="flex flex-wrap gap-3 mt-3">
                 {imagePreviews.map((src, idx) => (
@@ -340,9 +365,7 @@ export default function NewRequestPage() {
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={src} alt={`첨부 이미지 ${idx + 1}`} className="w-full h-full object-cover" />
-                    {/* 호버 오버레이 */}
                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
-                    {/* 삭제 버튼 */}
                     <button
                       type="button"
                       onClick={e => { e.stopPropagation(); removeImage(idx); }}
@@ -351,13 +374,11 @@ export default function NewRequestPage() {
                     >
                       ×
                     </button>
-                    {/* 순서 뱃지 */}
                     <span className="absolute bottom-1 left-1 w-5 h-5 bg-black/50 text-white text-xs rounded-full flex items-center justify-center">
                       {idx + 1}
                     </span>
                   </div>
                 ))}
-                {/* + 추가 버튼 (기존 유지) */}
                 {!isFull && (
                   <button
                     type="button"
@@ -380,6 +401,15 @@ export default function NewRequestPage() {
               type="file"
               accept=".jpg,.jpeg,.png,.gif,.webp,image/jpeg,image/png,image/gif,image/webp"
               multiple
+              className="hidden"
+              onChange={handleImageChange}
+            />
+            {/* 카메라 촬영 인풋 (모바일) */}
+            <input
+              ref={cameraInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
               className="hidden"
               onChange={handleImageChange}
             />
