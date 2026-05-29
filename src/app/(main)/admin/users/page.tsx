@@ -6,11 +6,12 @@ import { supabase } from '@/lib/supabase';
 import { getSession } from '@/lib/auth';
 import type { Role, Profile } from '@/lib/types';
 
-const ROLES: Role[] = ['마스터관리자', '직영', '사용협력사', '납품협력사'];
+const ROLES: Role[] = ['마스터관리자', '직영관리자', '직영', '사용협력사', '납품협력사'];
 
 const ROLE_META: Record<Role, { color: string; bg: string; desc: string }> = {
   '마스터관리자': { color: 'text-red-700',    bg: 'bg-red-100',    desc: '전체 메뉴 + 사용자 관리 + 시스템 전체 설정' },
-  '직영':         { color: 'text-blue-700',   bg: 'bg-blue-100',   desc: '구매 등록 + 낙찰 확정 + 계약·발주 관리' },
+  '직영관리자':   { color: 'text-amber-700',  bg: 'bg-amber-100',  desc: '낙찰·재입찰 전담 + 구매등록 + 결재 관리' },
+  '직영':         { color: 'text-blue-700',   bg: 'bg-blue-100',   desc: '신규 구매품 등록 + 발주 신청 (결재 필요)' },
   '사용협력사':   { color: 'text-green-700',  bg: 'bg-green-100',  desc: '신규 구매품 등록 + 품목 관리 + 발주 현황' },
   '납품협력사':   { color: 'text-purple-700', bg: 'bg-purple-100', desc: '입찰 참여 + 발주 현황 + 계약 이력 (파트별 매칭)' },
 };

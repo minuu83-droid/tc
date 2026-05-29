@@ -76,7 +76,7 @@ export default function BidsPage() {
         setMinPrices(mins);
       }
     } else {
-      /* 직영/마스터관리자: 입찰 중인 구매 요청 목록 (required_parts 포함) */
+      /* 직영관리자/마스터관리자/직영: 입찰 중인 구매 요청 목록 */
       const { data } = await supabase
         .from('purchase_requests')
         .select('*, requester:profiles!requester_id(name), company:companies!company_id(name)')
@@ -420,51 +420,87 @@ export default function BidsPage() {
   }
 
   /* ════════════════════════════════════════
-     직영 뷰
+     직영관리자 / 마스터관리자 / 직영 뷰
   ════════════════════════════════════════ */
+  const isManager = profile.role === '직영관리자' || profile.role === '마스터관리자';
+
   return (
-    <div className="card overflow-hidden">
-      <div className="p-4 border-b border-gray-100">
-        <h3 className="font-semibold text-gray-800">입찰 진행중 구매 요청</h3>
-        <p className="text-sm text-gray-500 mt-0.5">구매 요청 목록에서 낙찰 처리를 진행할 수 있습니다.</p>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-semibold text-gray-900">입찰 진행중 구매 요청</h3>
+          <p className="text-sm text-gray-500 mt-0.5">
+            {isManager
+              ? '낙찰 확정 및 재입찰은 구매 요청 메뉴 → 상세보기에서 처리하세요.'
+              : '현재 입찰이 진행 중인 구매 요청 목록입니다. (조회만 가능)'}
+          </p>
+        </div>
+        <span className="text-xs bg-blue-50 text-blue-600 font-medium px-3 py-1 rounded-full border border-blue-200">
+          {requests.length}건 진행 중
+        </span>
       </div>
-      <table className="w-full">
-        <thead>
-          <tr>
-            <th className="table-th">품목명</th>
-            <th className="table-th">수량</th>
-            <th className="table-th">필요일</th>
-            <th className="table-th">요청자</th>
-            <th className="table-th">대상 파트</th>
-          </tr>
-        </thead>
-        <tbody>
-          {requests.length === 0 && (
-            <tr><td colSpan={5} className="table-td text-center text-gray-400 py-8">입찰 중인 항목 없음</td></tr>
-          )}
-          {requests.map(r => (
-            <tr key={r.id} className="border-t border-gray-100 hover:bg-gray-50">
-              <td className="table-td font-medium">{r.item_name}</td>
-              <td className="table-td">{r.quantity} {r.unit}</td>
-              <td className="table-td">{r.required_date ?? '-'}</td>
-              <td className="table-td">{(r.requester as { name: string } | null)?.name ?? '-'}</td>
-              <td className="table-td">
-                {r.required_parts && r.required_parts.length > 0 ? (
-                  <div className="flex flex-wrap gap-1">
-                    {r.required_parts.map(p => (
-                      <span key={p} className="text-[10px] bg-purple-100 text-purple-700 font-medium px-1.5 py-0.5 rounded-full">
-                        {p}
-                      </span>
-                    ))}
-                  </div>
-                ) : (
-                  <span className="text-xs text-gray-400">전체 공개</span>
-                )}
-              </td>
+
+      {!isManager && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm text-blue-800 flex items-center gap-2">
+          <span>ℹ️</span>
+          <span>입찰 조회만 가능합니다. 낙찰 확정/재입찰은 직영관리자 권한이 필요합니다.</span>
+        </div>
+      )}
+
+      <div className="card overflow-hidden">
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-gray-200">
+              <th className="table-th">품목명</th>
+              <th className="table-th">수량</th>
+              <th className="table-th">필요일</th>
+              <th className="table-th">요청자</th>
+              <th className="table-th">대상 파트</th>
+              {isManager && <th className="table-th text-center">처리</th>}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {requests.length === 0 && (
+              <tr>
+                <td colSpan={isManager ? 6 : 5} className="table-td text-center text-gray-400 py-8">
+                  입찰 중인 항목 없음
+                </td>
+              </tr>
+            )}
+            {requests.map(r => (
+              <tr key={r.id} className="border-t border-gray-100 hover:bg-gray-50">
+                <td className="table-td font-medium">{r.item_name}</td>
+                <td className="table-td">{r.quantity} {r.unit}</td>
+                <td className="table-td">{r.required_date ?? '-'}</td>
+                <td className="table-td">{(r.requester as { name: string } | null)?.name ?? '-'}</td>
+                <td className="table-td">
+                  {r.required_parts && r.required_parts.length > 0 ? (
+                    <div className="flex flex-wrap gap-1">
+                      {r.required_parts.map(p => (
+                        <span key={p} className="text-[10px] bg-purple-100 text-purple-700 font-medium px-1.5 py-0.5 rounded-full">
+                          {p}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="text-xs text-gray-400">전체 공개</span>
+                  )}
+                </td>
+                {isManager && (
+                  <td className="table-td text-center">
+                    <a
+                      href="/requests"
+                      className="text-xs text-blue-600 hover:underline font-medium"
+                    >
+                      구매요청에서 처리 →
+                    </a>
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

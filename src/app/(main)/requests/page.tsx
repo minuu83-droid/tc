@@ -116,7 +116,21 @@ export default function RequestsPage() {
     alert('낙찰 처리 완료! 계약이 생성되었습니다.');
   };
 
-  /* ── 구매 요청 삭제 (직영 전용, 입찰 없을 때만) ── */
+  /* ── 재입찰: 제출된 입찰 취소 후 다시 입찰 받기 ── */
+  const submitRebid = async () => {
+    if (!detail) return;
+    if (!confirm('기존 입찰을 모두 취소하고 재입찰을 진행하시겠습니까?')) return;
+    const { error } = await supabase
+      .from('bids')
+      .update({ status: 'cancelled' })
+      .eq('request_id', detail.id)
+      .eq('status', 'submitted');
+    if (error) { setErr(`재입찰 실패: ${error.message}`); return; }
+    await openDetail(detail);
+    alert('재입찰이 등록되었습니다. 납품협력사가 새로 입찰할 수 있습니다.');
+  };
+
+  /* ── 구매 요청 삭제 (관리자 전용, 입찰 없을 때만) ── */
   const deleteRequest = async (r: PurchaseRequest) => {
     if (!confirm('정말 삭제하시겠습니까? 되돌릴 수 없습니다.')) return;
     const { error } = await supabase.from('purchase_requests').delete().eq('id', r.id);
@@ -127,10 +141,14 @@ export default function RequestsPage() {
   const STATUSES = ['all','pending','bidding','contracted','completed','cancelled'];
   const LABELS: Record<string,string> = { all:'전체', pending:'대기중', bidding:'입찰중', contracted:'계약완료', completed:'완료', cancelled:'취소' };
   const filtered = filter === 'all' ? requests : requests.filter(r => r.status === filter);
-  const minBid     = bids.length ? Math.min(...bids.map(b => b.unit_price)) : null;
-  const isOperator = profile?.role === '직영' || profile?.role === '마스터관리자';
+  const minBid    = bids.length ? Math.min(...bids.map(b => b.unit_price)) : null;
+  /* 관리자: 낙찰/삭제/재입찰 가능 */
+  const isManager  = profile?.role === '직영관리자' || profile?.role === '마스터관리자';
+  /* 운영자: 목록 조회 + 상세 보기 (직영 포함) */
+  const isOperator = isManager || profile?.role === '직영';
   const canBid     = detail && profile?.role === '납품협력사' && detail.status === 'bidding';
-  const canAward   = detail && isOperator && detail.status === 'bidding' && bids.length > 0;
+  const canAward   = detail && isManager && detail.status === 'bidding' && bids.length > 0;
+  const canRebid   = canAward && bids.some(b => b.status === 'submitted');
 
   return (
     <div className="space-y-4">
@@ -156,7 +174,7 @@ export default function RequestsPage() {
               <th className="table-th">수량</th><th className="table-th">필요일</th>
               <th className="table-th">요청자</th><th className="table-th">상태</th>
               <th className="table-th">상세</th>
-              {isOperator && <th className="table-th">삭제</th>}
+              {isManager && <th className="table-th">삭제</th>}
             </tr>
           </thead>
           <tbody>
@@ -188,20 +206,14 @@ export default function RequestsPage() {
                 <td className="table-td">
                   <button onClick={() => openDetail(r)} className="text-blue-600 hover:underline text-sm">보기</button>
                 </td>
-                {isOperator && (
+                {isManager && (
                   <td className="table-td">
                     {hasBids ? (
-                      <span
-                        className="text-xs text-gray-300 cursor-not-allowed"
-                        title="입찰 기록이 있어 삭제할 수 없습니다"
-                      >
+                      <span className="text-xs text-gray-300 cursor-not-allowed" title="입찰 기록이 있어 삭제할 수 없습니다">
                         삭제 불가
                       </span>
                     ) : (
-                      <button
-                        onClick={() => deleteRequest(r)}
-                        className="text-xs text-red-500 hover:text-red-700 hover:underline font-medium transition-colors"
-                      >
+                      <button onClick={() => deleteRequest(r)} className="text-xs text-red-500 hover:text-red-700 hover:underline font-medium transition-colors">
                         삭제
                       </button>
                     )}
@@ -249,7 +261,17 @@ export default function RequestsPage() {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <h4 className="font-semibold text-gray-800">입찰 현황 ({bids.length}건)</h4>
-                {canBid && <button className="btn-primary py-1 px-3 text-xs" onClick={() => { setBidModal(true); setErr(''); }}>입찰 참여</button>}
+                <div className="flex gap-2">
+                  {canRebid && (
+                    <button
+                      className="py-1 px-3 text-xs bg-orange-100 text-orange-700 hover:bg-orange-200 border border-orange-300 rounded-lg font-medium transition-colors"
+                      onClick={submitRebid}
+                    >
+                      🔄 재입찰 등록
+                    </button>
+                  )}
+                  {canBid && <button className="btn-primary py-1 px-3 text-xs" onClick={() => { setBidModal(true); setErr(''); }}>입찰 참여</button>}
+                </div>
               </div>
               <table className="w-full text-sm border rounded-lg overflow-hidden">
                 <thead><tr className="bg-gray-50">

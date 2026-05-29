@@ -15,7 +15,7 @@ export default function Header({ profile, title }: { profile: Profile; title: st
   const [bannerMsg, setBannerMsg]   = useState('');
   const prevCount = useRef(0);
 
-  const isApprover    = profile.role === '직영' && profile.is_approver;
+  const isApprover     = profile.role === '직영관리자' || (profile.role === '직영' && profile.is_approver);
   const isDirectWorker = profile.role === '직영' && !profile.is_approver;
 
   useEffect(() => {
@@ -79,6 +79,7 @@ export default function Header({ profile, title }: { profile: Profile; title: st
     }
     setShowBanner(false);
     router.push(isApprover ? '/approval' : '/orders');
+
   };
 
   const handleLogout = () => {
@@ -139,8 +140,10 @@ export default function Header({ profile, title }: { profile: Profile; title: st
             <p className="text-sm font-medium text-gray-800">{profile.name}</p>
             <p className="text-xs text-gray-500">
               {(profile.company as { name: string } | null)?.name ?? profile.role}
-              {profile.is_approver && (
-                <span className="ml-1 text-orange-600 font-medium">· 결재자</span>
+              {(profile.role === '직영관리자' || profile.is_approver) && (
+                <span className="ml-1 text-orange-600 font-medium">
+                  {profile.role === '직영관리자' ? '· 관리자' : '· 결재자'}
+                </span>
               )}
             </p>
           </div>

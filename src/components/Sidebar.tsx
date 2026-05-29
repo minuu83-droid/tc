@@ -14,12 +14,12 @@ type MenuItem = {
 };
 
 const menuItems: MenuItem[] = [
-  { href: '/dashboard', label: '대시보드',        icon: '📊', roles: ['마스터관리자', '직영', '사용협력사', '납품협력사'] },
-  { href: '/requests',  label: '신규 구매품 등록', icon: '📋', roles: ['마스터관리자', '직영', '사용협력사'] },
-  { href: '/bids',      label: '입찰 관리',        icon: '🏷️', roles: ['마스터관리자', '납품협력사'] },
-  { href: '/orders',    label: '발주 현황',        icon: '📦', roles: ['마스터관리자', '직영', '사용협력사', '납품협력사'] },
-  { href: '/contracts', label: '계약 이력',        icon: '📄', roles: ['마스터관리자', '납품협력사'] },
-  { href: '/items',     label: '품목 관리',        icon: '🔧', roles: ['마스터관리자', '직영', '사용협력사'] },
+  { href: '/dashboard', label: '대시보드',        icon: '📊', roles: ['마스터관리자', '직영관리자', '직영', '사용협력사', '납품협력사'] },
+  { href: '/requests',  label: '신규 구매품 등록', icon: '📋', roles: ['마스터관리자', '직영관리자', '직영', '사용협력사'] },
+  { href: '/bids',      label: '입찰 관리',        icon: '🏷️', roles: ['마스터관리자', '직영관리자', '직영', '납품협력사'] },
+  { href: '/orders',    label: '발주 현황',        icon: '📦', roles: ['마스터관리자', '직영관리자', '직영', '사용협력사', '납품협력사'] },
+  { href: '/contracts', label: '계약 이력',        icon: '📄', roles: ['마스터관리자', '직영관리자', '납품협력사'] },
+  { href: '/items',     label: '품목 관리',        icon: '🔧', roles: ['마스터관리자', '직영관리자', '사용협력사'] },
   { href: '/partners',  label: '협력사 관리',      icon: '🏢', roles: ['마스터관리자'] },
 ];
 
@@ -34,9 +34,11 @@ export default function Sidebar({ role, isApprover = false, companyName, usernam
   const pathname = usePathname();
   const [pendingCount, setPendingCount] = useState(0);
 
-  /* 결재자인 경우 결재대기 건수 실시간 조회 */
+  const showApproval = role === '직영관리자' || (role === '직영' && isApprover);
+
+  /* 결재 섹션이 있는 경우 결재대기 건수 실시간 조회 */
   useEffect(() => {
-    if (!isApprover) return;
+    if (!showApproval) return;
 
     const fetch = async () => {
       const { count } = await supabase
@@ -49,28 +51,30 @@ export default function Sidebar({ role, isApprover = false, companyName, usernam
     fetch();
 
     const channel = supabase
-      .channel('approval-pending')
+      .channel('approval-pending-sidebar')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, fetch)
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [isApprover]);
+  }, [showApproval]);
 
   const roleColors: Record<Role, string> = {
     '마스터관리자': 'bg-red-700',
+    '직영관리자':   'bg-amber-600',
     '직영':         'bg-blue-700',
     '사용협력사':   'bg-green-700',
     '납품협력사':   'bg-purple-700',
   };
 
   const isMasterAdmin = role === '마스터관리자';
+  const isDirectMgr   = role === '직영관리자';
 
   return (
     <aside className="w-60 min-h-screen bg-gray-900 text-white flex flex-col">
       {/* 로고 영역 */}
       <div className="p-5 border-b border-gray-700">
         <h1 className="text-lg font-bold text-white">소모품 구매시스템</h1>
-        <div className="flex items-center gap-2 mt-2">
+        <div className="flex items-center gap-2 mt-2 flex-wrap">
           <span className={`inline-block px-2 py-0.5 text-xs rounded ${roleColors[role]}`}>
             {role}
           </span>
@@ -79,7 +83,12 @@ export default function Sidebar({ role, isApprover = false, companyName, usernam
               MASTER
             </span>
           )}
-          {isApprover && (
+          {isDirectMgr && (
+            <span className="inline-block px-2 py-0.5 text-xs rounded bg-amber-900 text-amber-200 border border-amber-600">
+              MGR
+            </span>
+          )}
+          {!isDirectMgr && isApprover && (
             <span className="inline-block px-2 py-0.5 text-xs rounded bg-blue-900 text-blue-200 border border-blue-600">
               결재자
             </span>
@@ -101,8 +110,7 @@ export default function Sidebar({ role, isApprover = false, companyName, usernam
             {menuItems
               .filter(item => item.roles.includes(role))
               .map(item => {
-                const isActive =
-                  pathname === item.href || pathname.startsWith(item.href + '/');
+                const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
                 return (
                   <li key={item.href}>
                     <Link
@@ -122,8 +130,8 @@ export default function Sidebar({ role, isApprover = false, companyName, usernam
           </ul>
         </div>
 
-        {/* 결재자 전용 메뉴 */}
-        {isApprover && (
+        {/* 결재 관리 (직영관리자 또는 직영+결재자) */}
+        {showApproval && (
           <div>
             <p className="px-3 mb-2 text-[10px] font-semibold text-gray-500 uppercase tracking-widest">
               결재

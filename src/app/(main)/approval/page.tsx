@@ -30,7 +30,7 @@ export default function ApprovalPage() {
   useEffect(() => {
     const session = getSession();
     if (!session) { router.push('/login'); return; }
-    if (session.role !== '직영' || !session.is_approver) { router.push('/dashboard'); return; }
+    if (session.role !== '직영관리자' && (session.role !== '직영' || !session.is_approver)) { router.push('/dashboard'); return; }
     setProfile(session);
   }, [router]);
 

@@ -42,7 +42,7 @@ export default function OrdersPage() {
   }, []);
 
   const isSupplier     = profile?.role === '납품협력사';
-  const isApprover     = profile?.role === '직영' && (profile?.is_approver ?? false);
+  const isApprover     = profile?.role === '직영관리자' || (profile?.role === '직영' && (profile?.is_approver ?? false));
   const isDirectWorker = profile?.role === '직영' && !(profile?.is_approver ?? false);
 
   const statusFlow  = isSupplier ? FLOW_SUPPLIER  : FLOW_ADMIN;
