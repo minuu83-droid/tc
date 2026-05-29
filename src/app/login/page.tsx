@@ -131,8 +131,7 @@ function LoginForm({
 
       {/* 제목 */}
       <div className="mb-7">
-        <h1 className="text-2xl font-bold text-gray-900 mb-1">Login</h1>
-        <p className="text-xs text-gray-500">TC넷에 오신것을 환영합니다.</p>
+        <h1 className="text-lg font-semibold text-gray-700">TC 소모품 구매 시스템</h1>
       </div>
 
       <form onSubmit={onSubmit} className="space-y-4">
@@ -148,7 +147,8 @@ function LoginForm({
             required
             autoFocus
             autoComplete="username"
-            className="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none transition-all"
+            className="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none transition-all"
+            style={{ backgroundColor: '#F5F6F3' }}
             onFocus={e => (e.target.style.borderColor = '#607D74')}
             onBlur={e => (e.target.style.borderColor = '#d1d5db')}
           />
@@ -165,7 +165,8 @@ function LoginForm({
             placeholder="비밀번호 입력"
             required
             autoComplete="current-password"
-            className="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none transition-all"
+            className="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none transition-all"
+            style={{ backgroundColor: '#F5F6F3' }}
             onFocus={e => (e.target.style.borderColor = '#607D74')}
             onBlur={e => (e.target.style.borderColor = '#d1d5db')}
           />
