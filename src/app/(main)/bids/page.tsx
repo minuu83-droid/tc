@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { getSession } from '@/lib/auth';
 import StatusBadge from '@/components/StatusBadge';
@@ -488,12 +489,12 @@ export default function BidsPage() {
                 </td>
                 {isManager && (
                   <td className="table-td text-center">
-                    <a
+                    <Link
                       href="/requests"
                       className="text-xs text-blue-600 hover:underline font-medium"
                     >
                       구매요청에서 처리 →
-                    </a>
+                    </Link>
                   </td>
                 )}
               </tr>
