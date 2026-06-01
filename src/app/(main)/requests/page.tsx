@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef, DragEvent } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { getSession } from '@/lib/auth';
@@ -8,6 +8,10 @@ import StatusBadge from '@/components/StatusBadge';
 import Modal from '@/components/Modal';
 import { PurchaseRequest, Bid, Profile } from '@/lib/types';
 import ImageGallery from '@/components/ImageGallery';
+import { PARTS_LIST } from '@/lib/constants';
+
+const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+const MAX_IMAGES = 3;
 
 export default function RequestsPage() {
   const [profile, setProfile]   = useState<Profile | null>(null);
@@ -23,6 +27,20 @@ export default function RequestsPage() {
   const [quickSelect, setQuickSelect] = useState<'once' | '6m' | '1y' | null>(null);
   const [saving, setSaving]     = useState(false);
   const [err, setErr]           = useState('');
+
+  /* ── 수정 모드 상태 ── */
+  const [editMode, setEditMode] = useState(false);
+  const [editForm, setEditForm] = useState({
+    item_name: '', maker: '', spec: '', quantity: '', unit: 'EA', required_date: '', notes: '',
+  });
+  const [editParts, setEditParts] = useState<string[]>([]);
+  const [editExistingUrls, setEditExistingUrls] = useState<string[]>([]);
+  const [editNewFiles, setEditNewFiles] = useState<File[]>([]);
+  const [editNewPreviews, setEditNewPreviews] = useState<string[]>([]);
+  const [editSaved, setEditSaved] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragCounter = useRef(0);
+  const editFileInputRef = useRef<HTMLInputElement>(null);
 
   /* 날짜 → YYYY-MM-DD */
   const toDateStr = (d: Date) => d.toISOString().slice(0, 10);
@@ -70,13 +88,157 @@ export default function RequestsPage() {
   useEffect(() => { load(); }, [load]);
 
   const openDetail = async (r: PurchaseRequest) => {
-    setDetail(r); setErr('');
+    setDetail(r); setErr(''); setEditMode(false); setEditSaved(false);
     const { data } = await supabase
       .from('bids')
       .select('*, supplier:companies!supplier_id(name, parts)')
       .eq('request_id', r.id)
       .order('unit_price');
     setBids((data ?? []) as Bid[]);
+  };
+
+  const closeDetail = () => {
+    setDetail(null); setBids([]);
+    setEditMode(false); setEditSaved(false);
+    setEditNewFiles([]); setEditNewPreviews([]);
+  };
+
+  /* ── 수정 모드 진입 ── */
+  const enterEditMode = () => {
+    if (!detail) return;
+    setEditForm({
+      item_name: detail.item_name,
+      maker: detail.maker ?? '',
+      spec: detail.spec ?? '',
+      quantity: String(detail.quantity),
+      unit: detail.unit,
+      required_date: detail.required_date ?? '',
+      notes: detail.notes ?? '',
+    });
+    setEditParts(detail.required_parts ?? []);
+    setEditExistingUrls(detail.image_urls ?? []);
+    setEditNewFiles([]);
+    setEditNewPreviews([]);
+    setEditSaved(false);
+    setErr('');
+    setEditMode(true);
+  };
+
+  const cancelEdit = () => {
+    setEditMode(false);
+    setEditNewFiles([]);
+    setEditNewPreviews([]);
+    setErr('');
+  };
+
+  const toggleEditPart = (part: string) =>
+    setEditParts(prev => prev.includes(part) ? prev.filter(p => p !== part) : [...prev, part]);
+
+  /* ── 편집 이미지 처리 ── */
+  const editTotalImages = editExistingUrls.length + editNewFiles.length;
+  const editIsFull = editTotalImages >= MAX_IMAGES;
+
+  const addEditFiles = (files: File[]) => {
+    const valid = files.filter(f => ALLOWED_TYPES.includes(f.type));
+    if (valid.length === 0) return;
+    const available = MAX_IMAGES - editExistingUrls.length - editNewFiles.length;
+    if (available <= 0) return;
+    const toAdd = valid.slice(0, available);
+    setEditNewFiles(prev => {
+      const next = [...prev, ...toAdd];
+      setEditNewPreviews(next.map(f => URL.createObjectURL(f)));
+      return next;
+    });
+  };
+
+  const removeEditExistingImage = (idx: number) => {
+    setEditExistingUrls(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const removeEditNewImage = (idx: number) => {
+    setEditNewFiles(prev => {
+      const next = prev.filter((_, i) => i !== idx);
+      setEditNewPreviews(next.map(f => URL.createObjectURL(f)));
+      return next;
+    });
+  };
+
+  const handleEditFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    addEditFiles(Array.from(e.target.files ?? []));
+    e.target.value = '';
+  };
+
+  const handleDragEnter = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault(); e.stopPropagation();
+    dragCounter.current++;
+    if (!editIsFull) setIsDragging(true);
+  };
+  const handleDragLeave = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault(); e.stopPropagation();
+    dragCounter.current--;
+    if (dragCounter.current === 0) setIsDragging(false);
+  };
+  const handleDragOver = (e: DragEvent<HTMLDivElement>) => { e.preventDefault(); e.stopPropagation(); };
+  const handleDrop = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault(); e.stopPropagation();
+    setIsDragging(false); dragCounter.current = 0;
+    if (editIsFull) return;
+    addEditFiles(Array.from(e.dataTransfer.files));
+  };
+
+  /* ── 수정 저장 ── */
+  const saveEdit = async () => {
+    if (!detail || !editForm.item_name || !editForm.quantity) {
+      setErr('품목명과 수량은 필수입니다.'); return;
+    }
+    setSaving(true); setErr('');
+    try {
+      const newUrls: string[] = [];
+      for (const file of editNewFiles) {
+        const ext = file.name.split('.').pop();
+        const path = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+        const { error: upErr } = await supabase.storage
+          .from('procurement-images')
+          .upload(path, file, { contentType: file.type });
+        if (upErr) throw new Error(`이미지 업로드 실패: ${upErr.message}`);
+        const { data } = supabase.storage.from('procurement-images').getPublicUrl(path);
+        newUrls.push(data.publicUrl);
+      }
+      const allUrls = [...editExistingUrls, ...newUrls];
+
+      const { error: updateErr } = await supabase
+        .from('purchase_requests')
+        .update({
+          item_name: editForm.item_name,
+          maker: editForm.maker || null,
+          spec: editForm.spec || null,
+          quantity: Number(editForm.quantity),
+          unit: editForm.unit,
+          required_date: editForm.required_date || null,
+          notes: editForm.notes || null,
+          image_urls: allUrls.length > 0 ? allUrls : null,
+          required_parts: editParts.length > 0 ? editParts : null,
+        })
+        .eq('id', detail.id);
+
+      if (updateErr) { setErr(updateErr.message); return; }
+
+      setEditMode(false);
+      setEditSaved(true);
+      setEditNewFiles([]); setEditNewPreviews([]);
+
+      await load();
+      const { data: updated } = await supabase
+        .from('purchase_requests')
+        .select('*, requester:profiles!requester_id(name), company:companies!company_id(name)')
+        .eq('id', detail.id)
+        .single();
+      if (updated) setDetail(updated as PurchaseRequest);
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : '오류가 발생했습니다.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const submitBid = async () => {
@@ -101,15 +263,14 @@ export default function RequestsPage() {
     if (!awardModal) return;
     setSaving(true); setErr('');
     const { data, error } = await supabase.rpc('award_bid', {
-      p_bid_id:          awardModal.id,            // integer (bids.id)
-      p_created_by:      profile?.id ?? null,       // uuid   (profiles.id)
+      p_bid_id:          awardModal.id,
+      p_created_by:      profile?.id ?? null,
       p_start_date:      awardForm.start_date,
       p_end_date:        awardForm.end_date,
       p_prev_unit_price: awardForm.prev_unit_price ? Number(awardForm.prev_unit_price) : null,
     });
     setSaving(false);
     if (error) { setErr(error.message); return; }
-    // 함수가 { error: '...' } JSONB를 반환하는 경우 처리
     const result = data as { error?: string; contract_id?: number } | null;
     if (result?.error) { setErr(result.error); return; }
     setAwardModal(null); setDetail(null); load();
@@ -142,13 +303,14 @@ export default function RequestsPage() {
   const LABELS: Record<string,string> = { all:'전체', pending:'대기중', bidding:'입찰중', contracted:'계약완료', completed:'완료', cancelled:'취소' };
   const filtered = filter === 'all' ? requests : requests.filter(r => r.status === filter);
   const minBid    = bids.length ? Math.min(...bids.map(b => b.unit_price)) : null;
-  /* 관리자: 낙찰/삭제/재입찰 가능 */
   const isManager  = profile?.role === '직영관리자' || profile?.role === '마스터관리자';
-  /* 운영자: 목록 조회 + 상세 보기 (직영 포함) */
   const isOperator = isManager || profile?.role === '직영';
   const canBid     = detail && profile?.role === '납품협력사' && detail.status === 'bidding';
   const canAward   = detail && isManager && detail.status === 'bidding' && bids.length > 0;
   const canRebid   = canAward && bids.some(b => b.status === 'submitted');
+  const canEdit    = detail?.status === 'bidding' && (
+    profile?.role === '직영관리자' || profile?.role === '직영' || profile?.role === '마스터관리자'
+  );
 
   return (
     <div className="space-y-4">
@@ -227,99 +389,304 @@ export default function RequestsPage() {
       </div>
 
       {/* 상세 모달 */}
-      <Modal isOpen={!!detail} onClose={() => { setDetail(null); setBids([]); }} title="구매 요청 상세" size="lg">
+      <Modal
+        isOpen={!!detail}
+        onClose={closeDetail}
+        title={editMode ? '구매 요청 수정' : '구매 요청 상세'}
+        size="lg"
+      >
         {detail && (
           <div className="space-y-4">
-            <div className="grid grid-cols-3 gap-3 text-sm bg-gray-50 rounded-lg p-4">
-              <div><span className="text-gray-500">품목명</span><p className="font-semibold">{detail.item_name}</p></div>
-              <div><span className="text-gray-500">메이커</span><p>{detail.maker ?? '-'}</p></div>
-              <div><span className="text-gray-500">규격</span><p>{detail.spec ?? '-'}</p></div>
-              <div><span className="text-gray-500">수량</span><p className="font-semibold">{detail.quantity.toLocaleString()} {detail.unit}</p></div>
-              <div><span className="text-gray-500">필요일</span><p>{detail.required_date ?? '-'}</p></div>
-              <div><span className="text-gray-500">상태</span><p><StatusBadge status={detail.status} /></p></div>
-              {detail.notes && <div className="col-span-3"><span className="text-gray-500">비고</span><p>{detail.notes}</p></div>}
-            </div>
 
-            {/* 대상 파트 */}
-            {detail.required_parts && detail.required_parts.length > 0 && (
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs font-semibold text-gray-500">대상 파트:</span>
-                {detail.required_parts.map(p => (
-                  <span key={p} className="text-xs bg-purple-100 text-purple-700 font-semibold px-2.5 py-1 rounded-full">
-                    {p}
-                  </span>
-                ))}
+            {/* 저장 완료 알림 */}
+            {editSaved && (
+              <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm">
+                <span className="text-amber-500 text-base mt-0.5">🔔</span>
+                <div>
+                  <p className="font-semibold text-amber-800">수정이 완료되었습니다.</p>
+                  <p className="text-amber-700 mt-0.5">입찰 참여 업체에게 변경 내용을 별도로 안내해 주세요.</p>
+                </div>
               </div>
             )}
 
-            {/* 첨부 사진 */}
-            <div className="bg-gray-50 rounded-lg p-4">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">첨부 사진</p>
-              <ImageGallery urls={detail.image_urls} />
-            </div>
+            {/* 조회 모드 */}
+            {!editMode && (
+              <>
+                <div className="grid grid-cols-3 gap-3 text-sm bg-gray-50 rounded-lg p-4">
+                  <div><span className="text-gray-500">품목명</span><p className="font-semibold">{detail.item_name}</p></div>
+                  <div><span className="text-gray-500">메이커</span><p>{detail.maker ?? '-'}</p></div>
+                  <div><span className="text-gray-500">규격</span><p>{detail.spec ?? '-'}</p></div>
+                  <div><span className="text-gray-500">수량</span><p className="font-semibold">{detail.quantity.toLocaleString()} {detail.unit}</p></div>
+                  <div><span className="text-gray-500">필요일</span><p>{detail.required_date ?? '-'}</p></div>
+                  <div><span className="text-gray-500">상태</span><p><StatusBadge status={detail.status} /></p></div>
+                  {detail.notes && <div className="col-span-3"><span className="text-gray-500">비고</span><p>{detail.notes}</p></div>}
+                </div>
 
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="font-semibold text-gray-800">입찰 현황 ({bids.length}건)</h4>
-                <div className="flex gap-2">
-                  {canRebid && (
+                {detail.required_parts && detail.required_parts.length > 0 && (
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-semibold text-gray-500">대상 파트:</span>
+                    {detail.required_parts.map(p => (
+                      <span key={p} className="text-xs bg-purple-100 text-purple-700 font-semibold px-2.5 py-1 rounded-full">{p}</span>
+                    ))}
+                  </div>
+                )}
+
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">첨부 사진</p>
+                  <ImageGallery urls={detail.image_urls} />
+                </div>
+
+                {/* 수정 버튼 */}
+                {canEdit && (
+                  <div className="flex justify-end">
                     <button
-                      className="py-1 px-3 text-xs bg-orange-100 text-orange-700 hover:bg-orange-200 border border-orange-300 rounded-lg font-medium transition-colors"
-                      onClick={submitRebid}
+                      onClick={enterEditMode}
+                      className="flex items-center gap-1.5 px-4 py-2 text-sm bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 rounded-lg font-medium transition-colors"
                     >
-                      🔄 재입찰 등록
+                      ✏️ 수정
                     </button>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* 편집 모드 */}
+            {editMode && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div className="col-span-2">
+                    <label className="label">품목명 *</label>
+                    <input className="input" value={editForm.item_name}
+                      onChange={e => setEditForm(f => ({...f, item_name: e.target.value}))}
+                      placeholder="품목명 입력" />
+                  </div>
+                  <div>
+                    <label className="label">메이커</label>
+                    <input className="input" value={editForm.maker}
+                      onChange={e => setEditForm(f => ({...f, maker: e.target.value}))}
+                      placeholder="제조사" />
+                  </div>
+                  <div>
+                    <label className="label">규격/사양</label>
+                    <input className="input" value={editForm.spec}
+                      onChange={e => setEditForm(f => ({...f, spec: e.target.value}))}
+                      placeholder="규격" />
+                  </div>
+                  <div>
+                    <label className="label">수량 *</label>
+                    <input className="input" type="number" min="1" value={editForm.quantity}
+                      onChange={e => setEditForm(f => ({...f, quantity: e.target.value}))} />
+                  </div>
+                  <div>
+                    <label className="label">단위</label>
+                    <select className="input" value={editForm.unit}
+                      onChange={e => setEditForm(f => ({...f, unit: e.target.value}))}>
+                      {['EA','SET','Box','kg','L','m','pair','Roll'].map(u => <option key={u}>{u}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="label">필요일자</label>
+                    <input className="input" type="date" value={editForm.required_date}
+                      onChange={e => setEditForm(f => ({...f, required_date: e.target.value}))} />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="label">비고</label>
+                  <textarea className="input resize-none h-16" value={editForm.notes}
+                    onChange={e => setEditForm(f => ({...f, notes: e.target.value}))} />
+                </div>
+
+                {/* 대상 파트 편집 */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="label mb-0">대상 파트</label>
+                    {editParts.length > 0 && (
+                      <span className="text-xs text-purple-600 font-medium">{editParts.length}개 선택됨</span>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-x-5 gap-y-2 p-3 bg-purple-50 rounded-xl border border-purple-100">
+                    {PARTS_LIST.map(part => (
+                      <label key={part} className="flex items-center gap-1.5 cursor-pointer group">
+                        <input
+                          type="checkbox"
+                          checked={editParts.includes(part)}
+                          onChange={() => toggleEditPart(part)}
+                          className="w-4 h-4 rounded border-purple-300 text-purple-600 focus:ring-purple-400"
+                        />
+                        <span className={`text-sm font-medium transition-colors ${
+                          editParts.includes(part) ? 'text-purple-800' : 'text-gray-500 group-hover:text-purple-700'
+                        }`}>
+                          {part}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 첨부 사진 편집 */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="label mb-0">첨부 사진</label>
+                    <span className="text-xs text-gray-400">최대 {MAX_IMAGES}장 · {editTotalImages}/{MAX_IMAGES}장</span>
+                  </div>
+
+                  {/* 기존 이미지 */}
+                  {(editExistingUrls.length > 0 || editNewFiles.length > 0) && (
+                    <div className="flex flex-wrap gap-3 mb-3">
+                      {editExistingUrls.map((url, idx) => (
+                        <div key={`exist-${idx}`} className="relative w-20 h-20 rounded-lg overflow-hidden border border-gray-200 bg-gray-50 shadow-sm group">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={url} alt={`기존 이미지 ${idx + 1}`} className="w-full h-full object-cover" />
+                          <button
+                            type="button"
+                            onClick={() => removeEditExistingImage(idx)}
+                            className="absolute top-1 right-1 w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full text-sm flex items-center justify-center leading-none shadow transition-colors"
+                            aria-label="이미지 삭제"
+                          >×</button>
+                        </div>
+                      ))}
+                      {editNewPreviews.map((src, idx) => (
+                        <div key={`new-${idx}`} className="relative w-20 h-20 rounded-lg overflow-hidden border border-blue-200 bg-blue-50 shadow-sm">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={src} alt={`새 이미지 ${idx + 1}`} className="w-full h-full object-cover" />
+                          <span className="absolute top-1 left-1 text-[9px] bg-blue-500 text-white px-1 py-0.5 rounded font-medium">NEW</span>
+                          <button
+                            type="button"
+                            onClick={() => removeEditNewImage(idx)}
+                            className="absolute top-1 right-1 w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full text-sm flex items-center justify-center leading-none shadow transition-colors"
+                            aria-label="이미지 삭제"
+                          >×</button>
+                        </div>
+                      ))}
+                      {!editIsFull && (
+                        <button
+                          type="button"
+                          onClick={() => editFileInputRef.current?.click()}
+                          className="w-20 h-20 rounded-lg border-2 border-dashed border-gray-300 flex flex-col items-center justify-center text-gray-400 hover:border-blue-400 hover:text-blue-400 transition-colors"
+                          aria-label="사진 추가"
+                        >
+                          <svg className="w-5 h-5 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                          </svg>
+                          <span className="text-xs">추가</span>
+                        </button>
+                      )}
+                    </div>
                   )}
-                  {canBid && <button className="btn-primary py-1 px-3 text-xs" onClick={() => { setBidModal(true); setErr(''); }}>입찰 참여</button>}
+
+                  {/* 드롭존 (이미지가 없을 때만 표시) */}
+                  {editTotalImages === 0 && (
+                    <div
+                      onDragEnter={handleDragEnter}
+                      onDragLeave={handleDragLeave}
+                      onDragOver={handleDragOver}
+                      onDrop={handleDrop}
+                      onClick={() => editFileInputRef.current?.click()}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={e => e.key === 'Enter' && editFileInputRef.current?.click()}
+                      className={[
+                        'rounded-xl border-2 border-dashed transition-all duration-200 select-none cursor-pointer p-5 flex items-center justify-center gap-2 text-sm',
+                        isDragging
+                          ? 'border-blue-400 bg-blue-50 text-blue-600'
+                          : 'border-gray-300 bg-gray-50 text-gray-500 hover:border-blue-300 hover:bg-blue-50/40',
+                      ].join(' ')}
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                          d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      <span>{isDragging ? '여기에 놓으세요!' : '클릭하거나 드래그하여 사진 추가'}</span>
+                    </div>
+                  )}
+
+                  <input
+                    ref={editFileInputRef}
+                    type="file"
+                    accept=".jpg,.jpeg,.png,.gif,.webp,image/jpeg,image/png,image/gif,image/webp"
+                    multiple
+                    className="hidden"
+                    onChange={handleEditFileChange}
+                  />
+                </div>
+
+                {err && <p className="text-red-600 text-sm">{err}</p>}
+
+                <div className="flex gap-3 pt-1">
+                  <button className="btn-secondary flex-1" onClick={cancelEdit} disabled={saving}>취소</button>
+                  <button className="btn-primary flex-1" onClick={saveEdit} disabled={saving}>
+                    {saving ? '저장 중...' : '저장'}
+                  </button>
                 </div>
               </div>
-              <table className="w-full text-sm border rounded-lg overflow-hidden">
-                <thead><tr className="bg-gray-50">
-                  <th className="table-th">납품사</th><th className="table-th">파트</th>
-                  <th className="table-th">단가</th><th className="table-th">총액</th>
-                  <th className="table-th">납기(일)</th>
-                  <th className="table-th">결과</th>
-                  {canAward && <th className="table-th text-center">낙찰</th>}
-                </tr></thead>
-                <tbody>
-                  {bids.length === 0 && <tr><td colSpan={7} className="table-td text-center text-gray-400 py-4">입찰 없음</td></tr>}
-                  {bids.map(b => {
-                    const sup = b.supplier as { name: string; parts?: string[] | null } | null;
-                    return (
-                    <tr key={b.id} className={`border-t ${b.unit_price === minBid && bids.length>1 ? 'bg-green-50' : ''}`}>
-                      <td className="table-td font-medium">
-                        {sup?.name}
-                        {b.unit_price === minBid && bids.length>1 && <span className="ml-1 text-xs text-green-600 font-bold">최저가</span>}
-                      </td>
-                      <td className="table-td">
-                        {sup?.parts && sup.parts.length > 0 ? (
-                          <div className="flex flex-wrap gap-1">
-                            {sup.parts.map(p => (
-                              <span key={p} className="text-[10px] bg-purple-100 text-purple-700 font-medium px-1.5 py-0.5 rounded-full">{p}</span>
-                            ))}
-                          </div>
-                        ) : <span className="text-xs text-gray-300">-</span>}
-                      </td>
-                      <td className="table-td font-bold">{b.unit_price.toLocaleString()}원</td>
-                      <td className="table-td">{b.total_price.toLocaleString()}원</td>
-                      <td className="table-td">{b.delivery_days ?? '-'}</td>
-                      <td className="table-td"><StatusBadge status={b.status} /></td>
-                      {canAward && (
-                        <td className="table-td">
-                          {b.status === 'submitted' && (
-                            <button className="btn-primary py-1 px-2 text-xs"
-                              onClick={() => { setAwardModal(b); setAwardForm({start_date:'', end_date:'', prev_unit_price:''}); setQuickSelect(null); setErr(''); }}>
-                              낙찰
-                            </button>
-                          )}
+            )}
+
+            {/* 입찰 현황 (조회 모드에서만) */}
+            {!editMode && (
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="font-semibold text-gray-800">입찰 현황 ({bids.length}건)</h4>
+                  <div className="flex gap-2">
+                    {canRebid && (
+                      <button
+                        className="py-1 px-3 text-xs bg-orange-100 text-orange-700 hover:bg-orange-200 border border-orange-300 rounded-lg font-medium transition-colors"
+                        onClick={submitRebid}
+                      >
+                        🔄 재입찰 등록
+                      </button>
+                    )}
+                    {canBid && <button className="btn-primary py-1 px-3 text-xs" onClick={() => { setBidModal(true); setErr(''); }}>입찰 참여</button>}
+                  </div>
+                </div>
+                <table className="w-full text-sm border rounded-lg overflow-hidden">
+                  <thead><tr className="bg-gray-50">
+                    <th className="table-th">납품사</th><th className="table-th">파트</th>
+                    <th className="table-th">단가</th><th className="table-th">총액</th>
+                    <th className="table-th">납기(일)</th>
+                    <th className="table-th">결과</th>
+                    {canAward && <th className="table-th text-center">낙찰</th>}
+                  </tr></thead>
+                  <tbody>
+                    {bids.length === 0 && <tr><td colSpan={7} className="table-td text-center text-gray-400 py-4">입찰 없음</td></tr>}
+                    {bids.map(b => {
+                      const sup = b.supplier as { name: string; parts?: string[] | null } | null;
+                      return (
+                      <tr key={b.id} className={`border-t ${b.unit_price === minBid && bids.length>1 ? 'bg-green-50' : ''}`}>
+                        <td className="table-td font-medium">
+                          {sup?.name}
+                          {b.unit_price === minBid && bids.length>1 && <span className="ml-1 text-xs text-green-600 font-bold">최저가</span>}
                         </td>
-                      )}
-                    </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                        <td className="table-td">
+                          {sup?.parts && sup.parts.length > 0 ? (
+                            <div className="flex flex-wrap gap-1">
+                              {sup.parts.map(p => (
+                                <span key={p} className="text-[10px] bg-purple-100 text-purple-700 font-medium px-1.5 py-0.5 rounded-full">{p}</span>
+                              ))}
+                            </div>
+                          ) : <span className="text-xs text-gray-300">-</span>}
+                        </td>
+                        <td className="table-td font-bold">{b.unit_price.toLocaleString()}원</td>
+                        <td className="table-td">{b.total_price.toLocaleString()}원</td>
+                        <td className="table-td">{b.delivery_days ?? '-'}</td>
+                        <td className="table-td"><StatusBadge status={b.status} /></td>
+                        {canAward && (
+                          <td className="table-td">
+                            {b.status === 'submitted' && (
+                              <button className="btn-primary py-1 px-2 text-xs"
+                                onClick={() => { setAwardModal(b); setAwardForm({start_date:'', end_date:'', prev_unit_price:''}); setQuickSelect(null); setErr(''); }}>
+                                낙찰
+                              </button>
+                            )}
+                          </td>
+                        )}
+                      </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
       </Modal>
@@ -375,7 +742,6 @@ export default function RequestsPage() {
                 </div>
               </div>
 
-              {/* 빠른 선택 버튼 */}
               <div className="flex gap-2">
                 {([
                   { key: 'once', label: '일회성', active: 'bg-gray-600 text-white border-gray-600', inactive: 'text-gray-600 border-gray-300 hover:bg-gray-50' },
