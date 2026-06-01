@@ -17,7 +17,6 @@ export default function BidsPage() {
   const [profile, setProfile]         = useState<Profile | null>(null);
   const [requests, setRequests]       = useState<PurchaseRequest[]>([]);
   const [myBids, setMyBids]           = useState<Bid[]>([]);
-  const [minPrices, setMinPrices]     = useState<Record<number, number>>({});
   const [bidForms, setBidForms]       = useState<Record<number, BidForm>>({});
   const [submitStates, setSubmitStates] = useState<Record<number, SubmitState>>({});
   const [formErrors, setFormErrors]   = useState<Record<number, string>>({});
@@ -62,20 +61,6 @@ export default function BidsPage() {
         setMyBids((bids ?? []) as Bid[]);
       }
 
-      /* 3. 요청별 최저 입찰가 */
-      if (reqList.length > 0) {
-        const { data: allBids } = await supabase
-          .from('bids')
-          .select('request_id, unit_price')
-          .in('request_id', reqList.map(r => r.id));
-        const mins: Record<number, number> = {};
-        (allBids ?? []).forEach((b: { request_id: number; unit_price: number }) => {
-          if (mins[b.request_id] === undefined || b.unit_price < mins[b.request_id]) {
-            mins[b.request_id] = b.unit_price;
-          }
-        });
-        setMinPrices(mins);
-      }
     } else {
       /* 직영관리자/마스터관리자/직영: 입찰 중인 구매 요청 목록 */
       const { data } = await supabase
@@ -212,11 +197,6 @@ export default function BidsPage() {
           <div className="space-y-4">
             {requests.map(req => {
               const existingBid = myBids.find(b => b.request_id === req.id);
-              const minPrice    = minPrices[req.id];
-              const isLowest    = existingBid !== undefined
-                && existingBid.status !== 'cancelled'
-                && minPrice !== undefined
-                && existingBid.unit_price <= minPrice;
               const form        = bidForms[req.id] ?? defaultForm;
               const submitState = submitStates[req.id] ?? 'idle';
               const formError   = formErrors[req.id];
@@ -254,11 +234,6 @@ export default function BidsPage() {
                           ? <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-green-100 text-green-700">✓ 참여완료</span>
                           : <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-blue-50 text-blue-600 border border-blue-200">입찰 가능</span>
                       }
-                      {minPrice !== undefined && (
-                        <span className="text-xs text-gray-400">
-                          최저가&nbsp;<strong className="text-blue-600">{minPrice.toLocaleString()}원</strong>
-                        </span>
-                      )}
                     </div>
                   </div>
 
@@ -300,12 +275,6 @@ export default function BidsPage() {
                           <dt className="text-gray-500">입찰일시</dt>
                           <dd className="text-gray-500 text-xs">{existingBid.submitted_at?.slice(0, 16) ?? '-'}</dd>
                         </dl>
-                        {isLowest && (
-                          <div className="flex flex-col items-center bg-blue-50 border border-blue-200 rounded-xl px-5 py-3 shrink-0">
-                            <span className="text-2xl">🏆</span>
-                            <span className="text-xs font-bold text-blue-600 mt-1">현재 최저가</span>
-                          </div>
-                        )}
                       </div>
                       {/* 입찰 취소 버튼 */}
                       <div className="mt-3 pt-3 border-t border-green-200 flex justify-end">
