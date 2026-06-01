@@ -9,6 +9,10 @@ export type Profile = {
   company_id: number | null;
   parts?: string[] | null;
   is_approver?: boolean;
+  contact_name?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  memo?: string | null;
   company?: { name: string } | null;
   created_at: string;
 };
