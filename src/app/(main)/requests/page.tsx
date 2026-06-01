@@ -89,12 +89,31 @@ export default function RequestsPage() {
 
   const openDetail = async (r: PurchaseRequest) => {
     setDetail(r); setErr(''); setEditMode(false); setEditSaved(false);
-    const { data } = await supabase
+
+    const { data: bidsData } = await supabase
       .from('bids')
-      .select('*, supplier:companies!supplier_id(name, parts)')
+      .select('*')
       .eq('request_id', r.id)
       .order('unit_price');
-    setBids((data ?? []) as Bid[]);
+    const rawBids = (bidsData ?? []) as Bid[];
+
+    if (rawBids.length > 0) {
+      const companyIds = [...new Set(rawBids.map(b => b.supplier_id))];
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('name, parts, company_id')
+        .in('company_id', companyIds)
+        .eq('role', '납품협력사');
+
+      const profileMap: Record<number, { name: string; parts?: string[] | null }> = {};
+      (profileData ?? []).forEach((p: { name: string; parts?: string[] | null; company_id: number }) => {
+        profileMap[p.company_id] = { name: p.name, parts: p.parts };
+      });
+
+      setBids(rawBids.map(b => ({ ...b, supplier: profileMap[b.supplier_id] ?? null })));
+    } else {
+      setBids([]);
+    }
   };
 
   const closeDetail = () => {
