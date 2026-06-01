@@ -30,11 +30,11 @@ export default function AdminSuppliersPage() {
   const [stateMap, setStateMap] = useState<Record<string, SaveState>>({});
   const [error, setError]       = useState('');
 
-  /* ── 세션 체크: 마스터관리자만 접근 ── */
+  /* ── 세션 체크: 마스터관리자 / 부관리자 접근 ── */
   useEffect(() => {
     const session = getSession();
     if (!session) { router.push('/login'); return; }
-    if (session.role !== '마스터관리자') { router.push('/dashboard'); return; }
+    if (session.role !== '마스터관리자' && session.role !== '부관리자') { router.push('/dashboard'); return; }
     setProfile(session);
   }, [router]);
 
@@ -111,6 +111,8 @@ export default function AdminSuppliersPage() {
     setTimeout(() => setStateMap(m => ({ ...m, [targetId]: 'idle' })), 1500);
   };
 
+  const isReadOnly = profile?.role === '부관리자';
+
   if (!profile || loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -123,7 +125,14 @@ export default function AdminSuppliersPage() {
     <div className="max-w-4xl">
       {/* 헤더 */}
       <div className="mb-6">
-        <h2 className="text-xl font-bold text-gray-900">납품협력사 관리</h2>
+        <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+          납품협력사 관리
+          {isReadOnly && (
+            <span className="text-xs font-normal bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full border border-orange-200">
+              보기 전용
+            </span>
+          )}
+        </h2>
         <p className="text-sm text-gray-500 mt-1">
           납품협력사별 담당 파트를 지정합니다. 파트에 따라 입찰 가능한 구매 요청이 필터링됩니다.
         </p>
@@ -187,10 +196,10 @@ export default function AdminSuppliersPage() {
 
                   {/* 저장 버튼 영역 */}
                   <div className="flex items-center gap-2 shrink-0">
-                    {s === 'saving' && <span className="text-xs text-gray-400 animate-pulse">저장 중...</span>}
-                    {s === 'done'   && <span className="text-xs text-green-600 font-medium">✓ 저장됨</span>}
-                    {s === 'error'  && <span className="text-xs text-red-500 font-medium">✗ 저장 실패</span>}
-                    {s === 'idle' && hasChanges && (
+                    {!isReadOnly && s === 'saving' && <span className="text-xs text-gray-400 animate-pulse">저장 중...</span>}
+                    {!isReadOnly && s === 'done'   && <span className="text-xs text-green-600 font-medium">✓ 저장됨</span>}
+                    {!isReadOnly && s === 'error'  && <span className="text-xs text-red-500 font-medium">✗ 저장 실패</span>}
+                    {!isReadOnly && s === 'idle' && hasChanges && (
                       <button
                         onClick={() => saveSupplier(supplier.id)}
                         className="text-sm bg-purple-600 hover:bg-purple-700 text-white px-4 py-1.5 rounded-lg transition-colors font-medium"
@@ -210,12 +219,12 @@ export default function AdminSuppliersPage() {
                     {PARTS_LIST.map(part => {
                       const checked = selectedParts.includes(part);
                       return (
-                        <label key={part} className="flex items-center gap-2 cursor-pointer group">
+                        <label key={part} className={`flex items-center gap-2 ${isReadOnly ? 'cursor-default' : 'cursor-pointer group'}`}>
                           <input
                             type="checkbox"
                             checked={checked}
-                            onChange={() => togglePart(supplier.id, part)}
-                            disabled={s === 'saving'}
+                            onChange={() => { if (!isReadOnly) togglePart(supplier.id, part); }}
+                            disabled={s === 'saving' || isReadOnly}
                             className="w-4 h-4 rounded border-purple-300 text-purple-600 focus:ring-purple-400"
                           />
                           <span className={`text-sm font-medium transition-colors ${

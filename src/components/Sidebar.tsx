@@ -14,13 +14,13 @@ type MenuItem = {
 };
 
 const menuItems: MenuItem[] = [
-  { href: '/dashboard', label: '대시보드',        icon: '📊', roles: ['마스터관리자', '직영관리자', '직영', '사용협력사', '납품협력사'] },
-  { href: '/requests',  label: '신규 구매품 등록', icon: '📋', roles: ['마스터관리자', '직영관리자', '직영', '사용협력사'] },
-  { href: '/bids',      label: '입찰 관리',        icon: '🏷️', roles: ['마스터관리자', '직영관리자', '직영', '납품협력사'] },
-  { href: '/orders',    label: '발주 현황',        icon: '📦', roles: ['마스터관리자', '직영관리자', '직영', '사용협력사', '납품협력사'] },
-  { href: '/contracts', label: '계약 이력',        icon: '📄', roles: ['마스터관리자', '직영관리자', '납품협력사'] },
-  { href: '/items',     label: '품목 관리',        icon: '🔧', roles: ['마스터관리자', '직영관리자', '사용협력사'] },
-  { href: '/partners',  label: '협력사 관리',      icon: '🏢', roles: ['마스터관리자'] },
+  { href: '/dashboard', label: '대시보드',        icon: '📊', roles: ['마스터관리자', '부관리자', '직영관리자', '직영', '사용협력사', '납품협력사'] },
+  { href: '/requests',  label: '신규 구매품 등록', icon: '📋', roles: ['마스터관리자', '부관리자', '직영관리자', '직영', '사용협력사'] },
+  { href: '/bids',      label: '입찰 관리',        icon: '🏷️', roles: ['마스터관리자', '부관리자', '직영관리자', '직영', '납품협력사'] },
+  { href: '/orders',    label: '발주 현황',        icon: '📦', roles: ['마스터관리자', '부관리자', '직영관리자', '직영', '사용협력사', '납품협력사'] },
+  { href: '/contracts', label: '계약 이력',        icon: '📄', roles: ['마스터관리자', '부관리자', '직영관리자', '납품협력사'] },
+  { href: '/items',     label: '품목 관리',        icon: '🔧', roles: ['마스터관리자', '부관리자', '직영관리자', '사용협력사'] },
+  { href: '/partners',  label: '협력사 관리',      icon: '🏢', roles: ['마스터관리자', '부관리자'] },
 ];
 
 interface SidebarProps {
@@ -60,6 +60,7 @@ export default function Sidebar({ role, isApprover = false, companyName, usernam
 
   const roleColors: Record<Role, string> = {
     '마스터관리자': 'bg-red-700',
+    '부관리자':     'bg-orange-600',
     '직영관리자':   'bg-amber-600',
     '직영':         'bg-blue-700',
     '사용협력사':   'bg-green-700',
@@ -67,6 +68,7 @@ export default function Sidebar({ role, isApprover = false, companyName, usernam
   };
 
   const isMasterAdmin = role === '마스터관리자';
+  const isSubAdmin    = role === '부관리자';
   const isDirectMgr   = role === '직영관리자';
 
   return (
@@ -81,6 +83,11 @@ export default function Sidebar({ role, isApprover = false, companyName, usernam
           {isMasterAdmin && (
             <span className="inline-block px-2 py-0.5 text-xs rounded bg-red-900 text-red-200 border border-red-600">
               MASTER
+            </span>
+          )}
+          {isSubAdmin && (
+            <span className="inline-block px-2 py-0.5 text-xs rounded bg-orange-900 text-orange-200 border border-orange-600">
+              SUB
             </span>
           )}
           {isDirectMgr && (
@@ -156,11 +163,14 @@ export default function Sidebar({ role, isApprover = false, companyName, usernam
           </div>
         )}
 
-        {/* 마스터관리자 전용 메뉴 */}
-        {isMasterAdmin && (
+        {/* 마스터관리자 / 부관리자 시스템 관리 메뉴 */}
+        {(isMasterAdmin || isSubAdmin) && (
           <div>
-            <p className="px-3 mb-2 text-[10px] font-semibold text-gray-500 uppercase tracking-widest">
+            <p className="px-3 mb-2 text-[10px] font-semibold text-gray-500 uppercase tracking-widest flex items-center gap-1">
               시스템 관리
+              {isSubAdmin && (
+                <span className="text-[9px] text-orange-400 normal-case font-normal">(보기 전용)</span>
+              )}
             </p>
             <ul className="space-y-1">
               <li>

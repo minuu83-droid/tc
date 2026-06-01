@@ -18,7 +18,7 @@ interface Props {
 function buildNav(role: Role, isApprover: boolean, pending: number): { tabs: NavItem[]; more: NavItem[] } {
   const approval: NavItem = { href: '/approval', label: '결재', icon: '✅', badge: pending };
 
-  if (role === '마스터관리자') return {
+  if (role === '마스터관리자' || role === '부관리자') return {
     tabs: [
       { href: '/dashboard', label: '대시보드', icon: '📊' },
       { href: '/requests',  label: '구매등록',  icon: '📋' },

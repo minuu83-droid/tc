@@ -6,10 +6,11 @@ import { supabase } from '@/lib/supabase';
 import { getSession } from '@/lib/auth';
 import type { Role, Profile } from '@/lib/types';
 
-const ROLES: Role[] = ['마스터관리자', '직영관리자', '직영', '사용협력사', '납품협력사'];
+const ROLES: Role[] = ['마스터관리자', '부관리자', '직영관리자', '직영', '사용협력사', '납품협력사'];
 
 const ROLE_META: Record<Role, { color: string; bg: string; desc: string }> = {
   '마스터관리자': { color: 'text-red-700',    bg: 'bg-red-100',    desc: '전체 메뉴 + 사용자 관리 + 시스템 전체 설정' },
+  '부관리자':     { color: 'text-orange-700', bg: 'bg-orange-100', desc: '전체 메뉴 접근 가능 + 시스템 관리 보기 전용' },
   '직영관리자':   { color: 'text-amber-700',  bg: 'bg-amber-100',  desc: '낙찰·재입찰 전담 + 구매등록 + 결재 관리' },
   '직영':         { color: 'text-blue-700',   bg: 'bg-blue-100',   desc: '신규 구매품 등록 + 발주 신청 (결재 필요)' },
   '사용협력사':   { color: 'text-green-700',  bg: 'bg-green-100',  desc: '신규 구매품 등록 + 품목 관리 + 발주 현황' },
@@ -37,11 +38,11 @@ export default function AdminUsersPage() {
   const [stateMap, setStateMap] = useState<Record<string, SaveState>>({});
   const [error, setError]     = useState('');
 
-  /* ── 세션 체크: 마스터관리자만 접근 ── */
+  /* ── 세션 체크: 마스터관리자 / 부관리자 접근 ── */
   useEffect(() => {
     const session = getSession();
     if (!session) { router.push('/login'); return; }
-    if (session.role !== '마스터관리자') { router.push('/dashboard'); return; }
+    if (session.role !== '마스터관리자' && session.role !== '부관리자') { router.push('/dashboard'); return; }
     setProfile(session);
   }, [router]);
 
@@ -97,6 +98,8 @@ export default function AdminUsersPage() {
     setTimeout(() => setStateMap(m => ({ ...m, [targetId]: 'idle' })), 1500);
   };
 
+  const isReadOnly = profile?.role === '부관리자';
+
   if (!profile || loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -109,7 +112,14 @@ export default function AdminUsersPage() {
     <div className="max-w-5xl">
       {/* 헤더 */}
       <div className="mb-6">
-        <h2 className="text-xl font-bold text-gray-900">사용자 관리</h2>
+        <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+          사용자 관리
+          {isReadOnly && (
+            <span className="text-xs font-normal bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full border border-orange-200">
+              보기 전용
+            </span>
+          )}
+        </h2>
         <p className="text-sm text-gray-500 mt-1">
           전체 사용자의 역할을 관리합니다. 납품협력사 파트 설정은 <strong>납품협력사 관리</strong> 메뉴에서 합니다.
         </p>
@@ -185,11 +195,11 @@ export default function AdminUsersPage() {
                         setStateMap(m => ({ ...m, [user.id]: 'idle' }));
                         setError('');
                       }}
-                      disabled={s === 'saving'}
+                      disabled={s === 'saving' || isReadOnly}
                       className={[
                         'text-xs border rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-300 transition-colors',
                         roleChanged ? 'border-blue-400 bg-blue-50' : 'border-gray-200 bg-white',
-                        s === 'saving' ? 'opacity-50 cursor-not-allowed' : '',
+                        (s === 'saving' || isReadOnly) ? 'opacity-50 cursor-not-allowed' : '',
                       ].join(' ')}
                     >
                       {ROLES.map(r => (
@@ -199,10 +209,10 @@ export default function AdminUsersPage() {
                   </td>
                   {/* 저장 버튼 */}
                   <td className="px-4 py-3 text-right">
-                    {s === 'saving' && <span className="text-xs text-gray-400 animate-pulse">저장 중...</span>}
-                    {s === 'done'   && <span className="text-xs text-green-600 font-medium">✓ 저장됨</span>}
-                    {s === 'error'  && <span className="text-xs text-red-500 font-medium">✗ 실패</span>}
-                    {s === 'idle' && roleChanged && (
+                    {!isReadOnly && s === 'saving' && <span className="text-xs text-gray-400 animate-pulse">저장 중...</span>}
+                    {!isReadOnly && s === 'done'   && <span className="text-xs text-green-600 font-medium">✓ 저장됨</span>}
+                    {!isReadOnly && s === 'error'  && <span className="text-xs text-red-500 font-medium">✗ 실패</span>}
+                    {!isReadOnly && s === 'idle' && roleChanged && (
                       <button
                         onClick={() => saveUser(user.id)}
                         className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg transition-colors"
