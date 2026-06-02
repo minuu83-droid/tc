@@ -39,7 +39,8 @@ export default function ItemsPage() {
   const [renewSaving, setRenewSaving] = useState(false);
   const [renewErr,    setRenewErr]    = useState('');
 
-  const isAdmin = profile?.role === '직영' || profile?.role === '마스터관리자';
+  const isAdmin   = profile?.role === '직영' || profile?.role === '마스터관리자';
+  const canRebid  = profile?.role === '마스터관리자' || profile?.role === '직영관리자';
   /* 직영 비결재자(tc202~206): 발주 시 결재 필요 */
   const needsApproval = profile?.role === '직영' && !(profile?.is_approver ?? false);
 
@@ -285,8 +286,8 @@ export default function ItemsPage() {
                       >
                         발주
                       </button>
-                      {/* 재입찰 (관리자) */}
-                      {isAdmin && (
+                      {/* 재입찰 (마스터관리자/직영관리자만) */}
+                      {canRebid && (
                         <button
                           onClick={() => startReBid(c)}
                           className="px-2.5 py-1 text-xs bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors"
