@@ -62,8 +62,8 @@ export default function OrdersPage() {
       query = query.eq('supplier_id', profile.company_id);
     }
 
-    /* 비결재자 직영: 본인이 요청한 발주만 */
-    if (isDirectWorker) {
+    /* 비결재자 직영 / 사용협력사: 본인이 요청한 발주만 */
+    if (isDirectWorker || profile.role === '사용협력사') {
       query = query.eq('ordered_by', profile.id);
     }
 
@@ -127,7 +127,10 @@ export default function OrdersPage() {
   };
 
   /* 필터 */
-  const STATUSES = ['all', 'ordered', 'processing', 'shipped', 'delivered', 'cancelled', '결재대기', '반려'];
+  const isSaUser = profile?.role === '사용협력사';
+  const STATUSES = isSaUser
+    ? ['all', 'ordered', 'processing', 'shipped', 'delivered', 'cancelled']
+    : ['all', 'ordered', 'processing', 'shipped', 'delivered', 'cancelled', '결재대기', '반려'];
   const SLABELS: Record<string, string> = {
     all:'전체', ordered:'발주완료', processing:'처리중',
     shipped:'배송중', delivered:'납품완료', cancelled:'취소',

@@ -19,7 +19,7 @@ const menuItems: MenuItem[] = [
   { href: '/bids',      label: '입찰 관리',        icon: '🏷️', roles: ['마스터관리자', '부관리자', '직영관리자', '직영', '납품협력사'] },
   { href: '/orders',    label: '발주 현황',        icon: '📦', roles: ['마스터관리자', '부관리자', '직영관리자', '직영', '사용협력사', '납품협력사'] },
   { href: '/contracts', label: '계약 이력',        icon: '📄', roles: ['마스터관리자', '부관리자', '직영관리자', '납품협력사'] },
-  { href: '/items',     label: '품목 관리',        icon: '🔧', roles: ['마스터관리자', '부관리자', '직영관리자', '사용협력사'] },
+  { href: '/items',     label: '품목 관리',        icon: '🔧', roles: ['마스터관리자', '부관리자', '직영관리자', '직영', '사용협력사'] },
   { href: '/partners',  label: '협력사 관리',      icon: '🏢', roles: ['마스터관리자', '부관리자', '직영관리자', '직영'] },
 ];
 

@@ -40,6 +40,8 @@ export default function ItemsPage() {
   const [renewErr,    setRenewErr]    = useState('');
 
   const isAdmin = profile?.role === '직영' || profile?.role === '마스터관리자';
+  /* 직영 비결재자(tc202~206): 발주 시 결재 필요 */
+  const needsApproval = profile?.role === '직영' && !(profile?.is_approver ?? false);
 
   useEffect(() => {
     const session = getSession();
@@ -96,11 +98,16 @@ export default function ItemsPage() {
       required_date: orderForm.required_date || null,
       notes:         orderForm.notes || null,
       status:        'ordered',
+      ...(needsApproval ? { approval_status: '결재대기' } : {}),
     });
     setOrderSaving(false);
     if (error) { setOrderErr(error.message); return; }
     setOrderTarget(null);
-    alert('발주가 완료되었습니다.');
+    if (needsApproval) {
+      alert('발주 신청이 등록되었습니다. 결재자 승인 후 발주가 확정됩니다.');
+    } else {
+      alert('발주가 완료되었습니다.');
+    }
     router.push('/orders');
   };
 
@@ -309,9 +316,15 @@ export default function ItemsPage() {
       </p>
 
       {/* ── 발주 모달 ── */}
-      <Modal isOpen={!!orderTarget} onClose={() => setOrderTarget(null)} title="구매 발주" size="sm">
+      <Modal isOpen={!!orderTarget} onClose={() => setOrderTarget(null)} title={needsApproval ? '발주 신청' : '구매 발주'} size="sm">
         {orderTarget && (
           <div className="space-y-4">
+            {needsApproval && (
+              <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 text-sm text-orange-800 flex items-start gap-2">
+                <span>⏳</span>
+                <span>발주 신청 후 결재자 승인이 필요합니다. 승인 완료 시 발주가 확정됩니다.</span>
+              </div>
+            )}
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm space-y-1">
               <p><strong>품목:</strong> {orderTarget.item_name}</p>
               <p><strong>납품사:</strong> {(orderTarget.supplier as { name: string } | null)?.name ?? '-'}</p>
@@ -343,8 +356,12 @@ export default function ItemsPage() {
             {orderErr && <p className="text-red-600 text-sm">⚠️ {orderErr}</p>}
             <div className="flex gap-3">
               <button className="btn-secondary flex-1" onClick={() => setOrderTarget(null)}>취소</button>
-              <button className="btn-primary flex-1" onClick={submitOrder} disabled={orderSaving}>
-                {orderSaving ? '처리 중...' : '발주 확정'}
+              <button
+                className={`flex-1 py-2 px-4 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${needsApproval ? 'bg-orange-500 hover:bg-orange-600' : 'bg-blue-600 hover:bg-blue-700'}`}
+                onClick={submitOrder}
+                disabled={orderSaving}
+              >
+                {orderSaving ? '처리 중...' : needsApproval ? '결재 요청' : '발주 확정'}
               </button>
             </div>
           </div>
