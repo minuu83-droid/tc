@@ -42,6 +42,16 @@ export default function RequestsPage() {
   const dragCounter = useRef(0);
   const editFileInputRef = useRef<HTMLInputElement>(null);
 
+  /* ── 재입찰 모달 상태 ── */
+  const [rebidSource, setRebidSource] = useState<PurchaseRequest | null>(null);
+  const [rebidForm, setRebidForm] = useState({
+    item_name: '', maker: '', spec: '', quantity: '', unit: 'EA', required_date: '', notes: '',
+  });
+  const [rebidParts, setRebidParts] = useState<string[]>([]);
+  const [rebidImageUrls, setRebidImageUrls] = useState<string[]>([]);
+  const [rebidSaving, setRebidSaving] = useState(false);
+  const [rebidErr, setRebidErr] = useState('');
+
   /* 날짜 → YYYY-MM-DD */
   const toDateStr = (d: Date) => d.toISOString().slice(0, 10);
 
@@ -69,7 +79,6 @@ export default function RequestsPage() {
     const reqList = (data ?? []) as PurchaseRequest[];
     setRequests(reqList);
 
-    /* 입찰 건수 로드 (삭제 가능 여부 판별용) */
     if (reqList.length > 0) {
       const { data: bidData } = await supabase
         .from('bids')
@@ -296,18 +305,76 @@ export default function RequestsPage() {
     alert('낙찰 처리 완료! 계약이 생성되었습니다.');
   };
 
-  /* ── 재입찰: 제출된 입찰 취소 후 다시 입찰 받기 ── */
-  const submitRebid = async () => {
-    if (!detail) return;
-    if (!confirm('기존 입찰을 모두 취소하고 재입찰을 진행하시겠습니까?')) return;
-    const { error } = await supabase
-      .from('bids')
-      .update({ status: 'cancelled' })
-      .eq('request_id', detail.id)
-      .eq('status', 'submitted');
-    if (error) { setErr(`재입찰 실패: ${error.message}`); return; }
-    await openDetail(detail);
-    alert('재입찰이 등록되었습니다. 납품협력사가 새로 입찰할 수 있습니다.');
+  /* ── 재입찰 모달 열기: 기존 데이터 자동 복사 ── */
+  const openRebid = (req: PurchaseRequest) => {
+    setRebidSource(req);
+    setRebidForm({
+      item_name:     req.item_name,
+      maker:         req.maker ?? '',
+      spec:          req.spec ?? '',
+      quantity:      String(req.quantity),
+      unit:          req.unit,
+      required_date: '',       // 필요일자는 비워둠
+      notes:         req.notes ?? '',
+    });
+    setRebidParts(req.required_parts ?? []);
+    setRebidImageUrls(req.image_urls ?? []);
+    setRebidErr('');
+  };
+
+  const toggleRebidPart = (part: string) =>
+    setRebidParts(prev => prev.includes(part) ? prev.filter(p => p !== part) : [...prev, part]);
+
+  /* ── 재입찰 확정: 기존 입찰 취소 + 기존 request 취소 + 새 request 생성 ── */
+  const confirmRebid = async () => {
+    if (!rebidSource || !profile) return;
+    if (!rebidForm.item_name || !rebidForm.quantity) {
+      setRebidErr('품목명과 수량은 필수입니다.'); return;
+    }
+    setRebidSaving(true); setRebidErr('');
+
+    try {
+      // 1. 기존 입찰 취소
+      await supabase
+        .from('bids')
+        .update({ status: 'cancelled' })
+        .eq('request_id', rebidSource.id)
+        .eq('status', 'submitted');
+
+      // 2. 기존 구매 요청 취소
+      await supabase
+        .from('purchase_requests')
+        .update({ status: 'cancelled' })
+        .eq('id', rebidSource.id);
+
+      // 3. 새 구매 요청 생성 (image_urls 그대로 복사)
+      const { error } = await supabase.from('purchase_requests').insert({
+        item_id:        rebidSource.item_id,
+        item_name:      rebidForm.item_name,
+        maker:          rebidForm.maker || null,
+        spec:           rebidForm.spec || null,
+        quantity:       Number(rebidForm.quantity),
+        unit:           rebidForm.unit,
+        required_date:  rebidForm.required_date || null,
+        requester_id:   profile.id,
+        company_id:     profile.company_id,
+        status:         'bidding',
+        notes:          rebidForm.notes || null,
+        image_urls:     rebidImageUrls.length > 0 ? rebidImageUrls : null,
+        required_parts: rebidParts.length > 0 ? rebidParts : null,
+      });
+
+      if (error) { setRebidErr(error.message); setRebidSaving(false); return; }
+
+      setRebidSource(null);
+      setDetail(null);
+      await load();
+      alert('재입찰이 등록되었습니다. 납품협력사가 새로 입찰할 수 있습니다.');
+    } catch (e: unknown) {
+      setRebidErr(e instanceof Error ? e.message : '오류가 발생했습니다.');
+    } finally {
+      setRebidSaving(false);
+    }
   };
 
   /* ── 구매 요청 삭제 (관리자 전용, 입찰 없을 때만) ── */
@@ -550,7 +617,6 @@ export default function RequestsPage() {
                     <span className="text-xs text-gray-400">최대 {MAX_IMAGES}장 · {editTotalImages}/{MAX_IMAGES}장</span>
                   </div>
 
-                  {/* 기존 이미지 */}
                   {(editExistingUrls.length > 0 || editNewFiles.length > 0) && (
                     <div className="flex flex-wrap gap-3 mb-3">
                       {editExistingUrls.map((url, idx) => (
@@ -594,7 +660,6 @@ export default function RequestsPage() {
                     </div>
                   )}
 
-                  {/* 드롭존 (이미지가 없을 때만 표시) */}
                   {editTotalImages === 0 && (
                     <div
                       onDragEnter={handleDragEnter}
@@ -650,7 +715,7 @@ export default function RequestsPage() {
                     {canRebid && (
                       <button
                         className="py-1 px-3 text-xs bg-orange-100 text-orange-700 hover:bg-orange-200 border border-orange-300 rounded-lg font-medium transition-colors"
-                        onClick={submitRebid}
+                        onClick={() => openRebid(detail)}
                       >
                         🔄 재입찰 등록
                       </button>
@@ -794,6 +859,150 @@ export default function RequestsPage() {
             <div className="flex gap-3">
               <button className="btn-secondary flex-1" onClick={() => setAwardModal(null)}>취소</button>
               <button className="btn-primary flex-1" onClick={submitAward} disabled={saving}>{saving?'처리중...':'낙찰 확정'}</button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* 재입찰 모달: 기존 데이터 자동 입력 */}
+      <Modal
+        isOpen={!!rebidSource}
+        onClose={() => setRebidSource(null)}
+        title={rebidSource ? `재입찰 - ${rebidSource.item_name}` : '재입찰'}
+        size="lg"
+      >
+        {rebidSource && (
+          <div className="space-y-4">
+            <div className="bg-orange-50 border border-orange-200 rounded-lg px-4 py-3 text-sm text-orange-800">
+              기존 입찰이 모두 취소되고 새 구매 요청으로 재입찰이 진행됩니다. 필요일자를 새로 입력해주세요.
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div className="col-span-2">
+                <label className="label">품목명 *</label>
+                <input
+                  className="input"
+                  value={rebidForm.item_name}
+                  onChange={e => setRebidForm(f => ({...f, item_name: e.target.value}))}
+                  placeholder="품목명 입력"
+                />
+              </div>
+              <div>
+                <label className="label">메이커</label>
+                <input
+                  className="input"
+                  value={rebidForm.maker}
+                  onChange={e => setRebidForm(f => ({...f, maker: e.target.value}))}
+                  placeholder="제조사"
+                />
+              </div>
+              <div>
+                <label className="label">규격/사양</label>
+                <input
+                  className="input"
+                  value={rebidForm.spec}
+                  onChange={e => setRebidForm(f => ({...f, spec: e.target.value}))}
+                  placeholder="규격"
+                />
+              </div>
+              <div>
+                <label className="label">수량 *</label>
+                <input
+                  className="input"
+                  type="number"
+                  min="1"
+                  value={rebidForm.quantity}
+                  onChange={e => setRebidForm(f => ({...f, quantity: e.target.value}))}
+                />
+              </div>
+              <div>
+                <label className="label">단위</label>
+                <select
+                  className="input"
+                  value={rebidForm.unit}
+                  onChange={e => setRebidForm(f => ({...f, unit: e.target.value}))}
+                >
+                  {['EA','SET','Box','kg','L','m','pair','Roll'].map(u => <option key={u}>{u}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="label">필요일자 <span className="text-orange-500 font-semibold">* 새로 입력</span></label>
+                <input
+                  className="input border-orange-300 focus:ring-orange-400"
+                  type="date"
+                  value={rebidForm.required_date}
+                  min={new Date().toISOString().slice(0, 10)}
+                  onChange={e => setRebidForm(f => ({...f, required_date: e.target.value}))}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="label">비고</label>
+              <textarea
+                className="input resize-none h-16"
+                value={rebidForm.notes}
+                onChange={e => setRebidForm(f => ({...f, notes: e.target.value}))}
+              />
+            </div>
+
+            {/* 대상 파트 */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="label mb-0">대상 파트</label>
+                {rebidParts.length > 0 && (
+                  <span className="text-xs text-purple-600 font-medium">{rebidParts.length}개 선택됨</span>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-x-5 gap-y-2 p-3 bg-purple-50 rounded-xl border border-purple-100">
+                {PARTS_LIST.map(part => (
+                  <label key={part} className="flex items-center gap-1.5 cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      checked={rebidParts.includes(part)}
+                      onChange={() => toggleRebidPart(part)}
+                      className="w-4 h-4 rounded border-purple-300 text-purple-600 focus:ring-purple-400"
+                    />
+                    <span className={`text-sm font-medium transition-colors ${
+                      rebidParts.includes(part) ? 'text-purple-800' : 'text-gray-500 group-hover:text-purple-700'
+                    }`}>
+                      {part}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* 복사된 첨부 사진 */}
+            {rebidImageUrls.length > 0 && (
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="label mb-0">첨부 사진 (기존에서 복사)</label>
+                  <span className="text-xs text-gray-400">{rebidImageUrls.length}장</span>
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                  {rebidImageUrls.map((url, idx) => (
+                    <div key={idx} className="relative w-20 h-20 rounded-lg overflow-hidden border border-gray-200 bg-gray-50 shadow-sm group">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={url} alt={`첨부 이미지 ${idx + 1}`} className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => setRebidImageUrls(prev => prev.filter((_, i) => i !== idx))}
+                        className="absolute top-1 right-1 w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full text-sm flex items-center justify-center leading-none shadow transition-colors"
+                        aria-label="이미지 제거"
+                      >×</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {rebidErr && <p className="text-red-600 text-sm">{rebidErr}</p>}
+            <div className="flex gap-3 pt-1">
+              <button className="btn-secondary flex-1" onClick={() => setRebidSource(null)} disabled={rebidSaving}>취소</button>
+              <button className="btn-primary flex-1" onClick={confirmRebid} disabled={rebidSaving}>
+                {rebidSaving ? '처리 중...' : '재입찰 등록'}
+              </button>
             </div>
           </div>
         )}
