@@ -54,7 +54,7 @@ export default function OrdersPage() {
 
     let query = supabase
       .from('orders')
-      .select('*, orderer:profiles!ordered_by(name), supplier:companies!supplier_id(name)')
+      .select('*, orderer:profiles!ordered_by(name)')
       .order('created_at', { ascending: false });
 
     /* 납품협력사: 본인 회사 발주만 */
@@ -68,7 +68,33 @@ export default function OrdersPage() {
     }
 
     const { data } = await query;
-    setOrders((data ?? []) as Order[]);
+    const rawOrders = (data ?? []) as Order[];
+
+    /* supplier_id(companies.id) → profiles.name(납품협력사 업체명) 매핑 */
+    if (rawOrders.length > 0) {
+      const supplierIds = [...new Set(
+        rawOrders.map(o => o.supplier_id).filter((id): id is number => id != null)
+      )];
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('name, company_id')
+        .in('company_id', supplierIds)
+        .eq('role', '납품협력사');
+
+      const supplierNameMap: Record<number, string> = {};
+      (profileData ?? []).forEach((p: { name: string; company_id: number }) => {
+        supplierNameMap[p.company_id] = p.name;
+      });
+
+      setOrders(rawOrders.map(o => ({
+        ...o,
+        supplier: o.supplier_id != null
+          ? { name: supplierNameMap[o.supplier_id] ?? '-' }
+          : null,
+      })));
+    } else {
+      setOrders([]);
+    }
 
     /* 비결재자 직영: 발주 현황 방문 시 알림 읽음 처리 */
     if (isDirectWorker) {
