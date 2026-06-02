@@ -474,7 +474,7 @@ export default function DashboardPage() {
                 ${activeSection === 'supplier' ? 'border-blue-600 bg-blue-50' : 'border-blue-400'}`}
             >
               <div className="flex items-center justify-between mb-2">
-                <p className="text-sm font-semibold text-gray-700">납품협력사 발주현황</p>
+                <p className="text-sm font-semibold text-gray-700">납품협력사 납기현황</p>
                 <span className={`text-[10px] font-medium ${activeSection === 'supplier' ? 'text-blue-600' : 'text-gray-300'}`}>
                   {activeSection === 'supplier' ? '▲ 접기' : '▼ 펼치기'}
                 </span>
@@ -527,7 +527,7 @@ export default function DashboardPage() {
           {activeSection === 'supplier' && (
             <div className="card overflow-hidden border-t-2 border-blue-200">
               <div className="px-4 py-3 bg-blue-50 border-b border-blue-100">
-                <p className="text-sm font-semibold text-blue-800">납품협력사별 상세 — 업체명 클릭 시 월별 서머리</p>
+                <p className="text-sm font-semibold text-blue-800">납품협력사 납기현황 상세 — 업체명 클릭 시 월별 서머리</p>
               </div>
               <table className="w-full text-sm">
                 <thead>
