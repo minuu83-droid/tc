@@ -120,18 +120,6 @@ function BarChart({ data }: { data: MonthlyRow[] }) {
   );
 }
 
-/* ── 섹션 헤더 ── */
-function SectionHeader({ title, subtitle }: { title: string; subtitle?: string }) {
-  return (
-    <div className="flex items-center justify-between p-4 border-b border-gray-100">
-      <div>
-        <h3 className="font-semibold text-gray-800">{title}</h3>
-        {subtitle && <p className="text-xs text-gray-400 mt-0.5">{subtitle}</p>}
-      </div>
-    </div>
-  );
-}
-
 /* ══════════════════════════════════════════════════
    메인 컴포넌트
 ══════════════════════════════════════════════════ */
@@ -141,6 +129,7 @@ export default function DashboardPage() {
   const [recentOrders, setRecentOrders] = useState<Order[]>([]);
   const [activeBids, setActiveBids]     = useState<BidItem[]>([]);
   const [activeCard, setActiveCard]     = useState<ActiveCard>(null);
+  const [activeSection, setActiveSection] = useState<'supplier' | 'team' | 'sa' | null>(null);
 
   /* 발주 현황 섹션 */
   const [supplierStats, setSupplierStats] = useState<OrdStat[]>([]);
@@ -304,6 +293,9 @@ export default function DashboardPage() {
   const toggleCard = (card: 'orders' | 'bids') =>
     setActiveCard(prev => (prev === card ? null : card));
 
+  const toggleSection = (section: 'supplier' | 'team' | 'sa') =>
+    setActiveSection(prev => (prev === section ? null : section));
+
   /* ── 월별 서머리 모달 ── */
   const openMonthlySummary = (id: string | number, name: string, filterType: 'supplier' | 'user') => {
     const months   = getLast6Months();
@@ -323,6 +315,21 @@ export default function DashboardPage() {
   const showStatsSections   = ['마스터관리자', '직영관리자', '직영'].includes(profile.role);
   const totalSummaryAmount  = monthlySummary.reduce((s, r) => s + r.amount, 0);
   const totalSummaryCount   = monthlySummary.reduce((s, r) => s + r.count, 0);
+
+  /* ── 섹션별 이달 합산 ── */
+  const supSum = {
+    count:  supplierStats.reduce((s, x) => s + x.monthCount, 0),
+    amount: supplierStats.reduce((s, x) => s + x.monthAmount, 0),
+  };
+  const tmSum = {
+    count:   teamStats.reduce((s, x) => s + x.monthCount, 0),
+    amount:  teamStats.reduce((s, x) => s + x.monthAmount, 0),
+    pending: teamStats.reduce((s, x) => s + (x.pendingCount ?? 0), 0),
+  };
+  const saSum = {
+    count:  saStats.reduce((s, x) => s + x.monthCount, 0),
+    amount: saStats.reduce((s, x) => s + x.monthAmount, 0),
+  };
 
   return (
     <div className="space-y-6">
@@ -452,139 +459,207 @@ export default function DashboardPage() {
       </div>
 
       {/* ════════════════════════════════════════
-          발주 현황 섹션 (관리자/직영 전용)
+          발주 현황 3분할 카드 (관리자/직영 전용)
       ════════════════════════════════════════ */}
       {showStatsSections && (
-        <div className="space-y-6">
+        <div className="space-y-3">
 
-          {/* 납품협력사별 */}
-          <div className="card overflow-hidden">
-            <SectionHeader title="납품협력사별 발주 현황" subtitle="업체명 클릭 시 월별 서머리 확인" />
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-200">
-                  <th className="table-th">업체명</th>
-                  <th className="table-th text-right">이달발주건수</th>
-                  <th className="table-th text-right">이달발주금액</th>
-                  <th className="table-th text-right">누적발주금액</th>
-                  <th className="table-th text-center">상태</th>
-                </tr>
-              </thead>
-              <tbody>
-                {supplierStats.length === 0 && (
-                  <tr><td colSpan={5} className="table-td text-center text-gray-400 py-6">데이터 없음</td></tr>
+          {/* ── 3분할 요약 카드 ── */}
+          <div className="grid grid-cols-3 gap-4">
+
+            {/* 납품협력사 */}
+            <button
+              onClick={() => toggleSection('supplier')}
+              className={`card p-4 border-l-4 text-left transition-all hover:shadow-md focus:outline-none
+                ${activeSection === 'supplier' ? 'border-blue-600 bg-blue-50' : 'border-blue-400'}`}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-sm font-semibold text-gray-700">납품협력사 발주현황</p>
+                <span className={`text-[10px] font-medium ${activeSection === 'supplier' ? 'text-blue-600' : 'text-gray-300'}`}>
+                  {activeSection === 'supplier' ? '▲ 접기' : '▼ 펼치기'}
+                </span>
+              </div>
+              <p className="text-2xl font-bold text-gray-900">{fmt(supSum.amount)}원</p>
+              <p className="text-xs text-gray-500 mt-1">이달 {supSum.count}건</p>
+            </button>
+
+            {/* 직영팀 */}
+            <button
+              onClick={() => toggleSection('team')}
+              className={`card p-4 border-l-4 text-left transition-all hover:shadow-md focus:outline-none
+                ${activeSection === 'team' ? 'border-green-600 bg-green-50' : 'border-green-400'}`}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-sm font-semibold text-gray-700">직영팀 발주현황</p>
+                <span className={`text-[10px] font-medium ${activeSection === 'team' ? 'text-green-600' : 'text-gray-300'}`}>
+                  {activeSection === 'team' ? '▲ 접기' : '▼ 펼치기'}
+                </span>
+              </div>
+              <p className="text-2xl font-bold text-gray-900">{fmt(tmSum.amount)}원</p>
+              <div className="flex items-center gap-2 mt-1">
+                <p className="text-xs text-gray-500">이달 {tmSum.count}건</p>
+                {tmSum.pending > 0 && (
+                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700">
+                    결재대기 {tmSum.pending}건
+                  </span>
                 )}
-                {supplierStats.map(s => (
-                  <tr key={s.id} className="border-t border-gray-100 hover:bg-gray-50">
-                    <td className="table-td">
-                      <button
-                        onClick={() => openMonthlySummary(s.id, s.name, 'supplier')}
-                        className="font-semibold text-blue-600 hover:underline text-left"
-                      >
-                        {s.name}
-                      </button>
-                      <span className="ml-1.5 text-xs text-gray-400 font-mono">{s.username}</span>
-                    </td>
-                    <td className="table-td text-right">{s.monthCount}건</td>
-                    <td className="table-td text-right font-medium">{fmt(s.monthAmount)}원</td>
-                    <td className="table-td text-right text-gray-500">{fmt(s.totalAmount)}원</td>
-                    <td className="table-td text-center">
-                      {s.monthCount > 0
-                        ? <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700">활성</span>
-                        : <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">대기</span>
-                      }
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+              </div>
+            </button>
+
+            {/* 사용협력사 */}
+            <button
+              onClick={() => toggleSection('sa')}
+              className={`card p-4 border-l-4 text-left transition-all hover:shadow-md focus:outline-none
+                ${activeSection === 'sa' ? 'border-orange-500 bg-orange-50' : 'border-orange-400'}`}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-sm font-semibold text-gray-700">사용협력사 발주현황</p>
+                <span className={`text-[10px] font-medium ${activeSection === 'sa' ? 'text-orange-600' : 'text-gray-300'}`}>
+                  {activeSection === 'sa' ? '▲ 접기' : '▼ 펼치기'}
+                </span>
+              </div>
+              <p className="text-2xl font-bold text-gray-900">{fmt(saSum.amount)}원</p>
+              <p className="text-xs text-gray-500 mt-1">이달 {saSum.count}건</p>
+            </button>
           </div>
 
-          {/* 직영팀별 */}
-          <div className="card overflow-hidden">
-            <SectionHeader title="직영팀 발주 현황" subtitle="팀원명 클릭 시 월별 서머리 확인" />
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-200">
-                  <th className="table-th">팀원명</th>
-                  <th className="table-th text-right">이달발주건수</th>
-                  <th className="table-th text-right">이달발주금액</th>
-                  <th className="table-th text-center">결재대기</th>
-                  <th className="table-th text-center">상태</th>
-                </tr>
-              </thead>
-              <tbody>
-                {teamStats.length === 0 && (
-                  <tr><td colSpan={5} className="table-td text-center text-gray-400 py-6">데이터 없음</td></tr>
-                )}
-                {teamStats.map(t => (
-                  <tr key={t.id} className={`border-t border-gray-100 hover:bg-gray-50 ${(t.pendingCount ?? 0) > 0 ? 'bg-orange-50/30' : ''}`}>
-                    <td className="table-td">
-                      <button
-                        onClick={() => openMonthlySummary(t.id, t.name, 'user')}
-                        className="font-semibold text-blue-600 hover:underline text-left"
-                      >
-                        {t.name}
-                      </button>
-                      <span className="ml-1.5 text-xs text-gray-400 font-mono">{t.username}</span>
-                    </td>
-                    <td className="table-td text-right">{t.monthCount}건</td>
-                    <td className="table-td text-right font-medium">{fmt(t.monthAmount)}원</td>
-                    <td className="table-td text-center">
-                      {(t.pendingCount ?? 0) > 0
-                        ? <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">{t.pendingCount}건</span>
-                        : <span className="text-xs text-gray-300">-</span>
-                      }
-                    </td>
-                    <td className="table-td text-center">
-                      {(t.pendingCount ?? 0) > 0
-                        ? <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">결재대기</span>
-                        : t.monthCount > 0
-                          ? <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700">정상</span>
-                          : <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">대기</span>
-                      }
-                    </td>
+          {/* ── 납품협력사 펼침 테이블 ── */}
+          {activeSection === 'supplier' && (
+            <div className="card overflow-hidden border-t-2 border-blue-200">
+              <div className="px-4 py-3 bg-blue-50 border-b border-blue-100">
+                <p className="text-sm font-semibold text-blue-800">납품협력사별 상세 — 업체명 클릭 시 월별 서머리</p>
+              </div>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-200">
+                    <th className="table-th">업체명</th>
+                    <th className="table-th text-right">이달발주건수</th>
+                    <th className="table-th text-right">이달발주금액</th>
+                    <th className="table-th text-right">누적발주금액</th>
+                    <th className="table-th text-center">상태</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {supplierStats.length === 0 && (
+                    <tr><td colSpan={5} className="table-td text-center text-gray-400 py-6">데이터 없음</td></tr>
+                  )}
+                  {supplierStats.map(s => (
+                    <tr key={s.id} className="border-t border-gray-100 hover:bg-gray-50">
+                      <td className="table-td">
+                        <button onClick={() => openMonthlySummary(s.id, s.name, 'supplier')}
+                          className="font-semibold text-blue-600 hover:underline text-left">
+                          {s.name}
+                        </button>
+                        <span className="ml-1.5 text-xs text-gray-400 font-mono">{s.username}</span>
+                      </td>
+                      <td className="table-td text-right">{s.monthCount}건</td>
+                      <td className="table-td text-right font-medium">{fmt(s.monthAmount)}원</td>
+                      <td className="table-td text-right text-gray-500">{fmt(s.totalAmount)}원</td>
+                      <td className="table-td text-center">
+                        {s.monthCount > 0
+                          ? <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700">활성</span>
+                          : <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">대기</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
 
-          {/* 사용협력사별 */}
-          <div className="card overflow-hidden">
-            <SectionHeader title="사용협력사별 발주 현황" subtitle="업체명 클릭 시 월별 서머리 확인" />
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-200">
-                  <th className="table-th">업체명</th>
-                  <th className="table-th text-right">이달발주건수</th>
-                  <th className="table-th text-right">이달발주금액</th>
-                  <th className="table-th text-right">누적발주금액</th>
-                </tr>
-              </thead>
-              <tbody>
-                {saStats.length === 0 && (
-                  <tr><td colSpan={4} className="table-td text-center text-gray-400 py-6">데이터 없음</td></tr>
-                )}
-                {saStats.map(s => (
-                  <tr key={s.id} className="border-t border-gray-100 hover:bg-gray-50">
-                    <td className="table-td">
-                      <button
-                        onClick={() => openMonthlySummary(s.id, s.name, 'user')}
-                        className="font-semibold text-blue-600 hover:underline text-left"
-                      >
-                        {s.name}
-                      </button>
-                      <span className="ml-1.5 text-xs text-gray-400 font-mono">{s.username}</span>
-                    </td>
-                    <td className="table-td text-right">{s.monthCount}건</td>
-                    <td className="table-td text-right font-medium">{fmt(s.monthAmount)}원</td>
-                    <td className="table-td text-right text-gray-500">{fmt(s.totalAmount)}원</td>
+          {/* ── 직영팀 펼침 테이블 ── */}
+          {activeSection === 'team' && (
+            <div className="card overflow-hidden border-t-2 border-green-200">
+              <div className="px-4 py-3 bg-green-50 border-b border-green-100">
+                <p className="text-sm font-semibold text-green-800">직영팀별 상세 — 팀원명 클릭 시 월별 서머리</p>
+              </div>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-200">
+                    <th className="table-th">팀원명</th>
+                    <th className="table-th text-right">이달발주건수</th>
+                    <th className="table-th text-right">이달발주금액</th>
+                    <th className="table-th text-center">결재대기</th>
+                    <th className="table-th text-center">상태</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {teamStats.length === 0 && (
+                    <tr><td colSpan={5} className="table-td text-center text-gray-400 py-6">데이터 없음</td></tr>
+                  )}
+                  {teamStats.map(t => (
+                    <tr key={t.id} className={`border-t border-gray-100 hover:bg-gray-50 ${(t.pendingCount ?? 0) > 0 ? 'bg-orange-50/30' : ''}`}>
+                      <td className="table-td">
+                        <button onClick={() => openMonthlySummary(t.id, t.name, 'user')}
+                          className="font-semibold text-blue-600 hover:underline text-left">
+                          {t.name}
+                        </button>
+                        <span className="ml-1.5 text-xs text-gray-400 font-mono">{t.username}</span>
+                      </td>
+                      <td className="table-td text-right">{t.monthCount}건</td>
+                      <td className="table-td text-right font-medium">{fmt(t.monthAmount)}원</td>
+                      <td className="table-td text-center">
+                        {(t.pendingCount ?? 0) > 0
+                          ? <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">{t.pendingCount}건</span>
+                          : <span className="text-xs text-gray-300">-</span>}
+                      </td>
+                      <td className="table-td text-center">
+                        {(t.pendingCount ?? 0) > 0
+                          ? <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">결재대기</span>
+                          : t.monthCount > 0
+                            ? <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700">정상</span>
+                            : <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">대기</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* ── 사용협력사 펼침 테이블 ── */}
+          {activeSection === 'sa' && (
+            <div className="card overflow-hidden border-t-2 border-orange-200">
+              <div className="px-4 py-3 bg-orange-50 border-b border-orange-100">
+                <p className="text-sm font-semibold text-orange-800">사용협력사별 상세 — 업체명 클릭 시 월별 서머리</p>
+              </div>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-200">
+                    <th className="table-th">업체명</th>
+                    <th className="table-th text-right">이달발주건수</th>
+                    <th className="table-th text-right">이달발주금액</th>
+                    <th className="table-th text-right">누적발주금액</th>
+                    <th className="table-th text-center">상태</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {saStats.length === 0 && (
+                    <tr><td colSpan={5} className="table-td text-center text-gray-400 py-6">데이터 없음</td></tr>
+                  )}
+                  {saStats.map(s => (
+                    <tr key={s.id} className="border-t border-gray-100 hover:bg-gray-50">
+                      <td className="table-td">
+                        <button onClick={() => openMonthlySummary(s.id, s.name, 'user')}
+                          className="font-semibold text-blue-600 hover:underline text-left">
+                          {s.name}
+                        </button>
+                        <span className="ml-1.5 text-xs text-gray-400 font-mono">{s.username}</span>
+                      </td>
+                      <td className="table-td text-right">{s.monthCount}건</td>
+                      <td className="table-td text-right font-medium">{fmt(s.monthAmount)}원</td>
+                      <td className="table-td text-right text-gray-500">{fmt(s.totalAmount)}원</td>
+                      <td className="table-td text-center">
+                        {s.monthCount > 0
+                          ? <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700">활성</span>
+                          : <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">대기</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
