@@ -8,38 +8,36 @@ import StatusBadge from '@/components/StatusBadge';
 import Modal from '@/components/Modal';
 import { Profile, Order, Contract } from '@/lib/types';
 
-/* ── 기존 타입 ── */
+/* ── 타입 ── */
 type Stats = {
-  pendingRequests: number;
-  biddingItems: number;
+  monthlyOrders: number;
+  biddingItems:  number;
   activeContracts: number;
-  monthlySavings: number;
+  expiringCount: number;
 };
 
-/* ── 발주 현황 타입 ── */
+type BidItem = {
+  id: number; item_name: string; quantity: number;
+  unit: string; bid_count: number; lowest_price: number | null;
+};
+
 type OrdStat = {
-  id: string | number;
-  name: string;
-  username?: string;
-  monthCount: number;
-  monthAmount: number;
-  totalAmount: number;
+  id: string | number; name: string; username?: string;
+  monthCount: number; monthAmount: number; totalAmount: number;
   pendingCount?: number;
 };
 
 type MonthlyRow = { month: string; count: number; amount: number };
 
 type RawOrder = {
-  id: number;
-  supplier_id: number | null;
-  ordered_by: string;
-  total_price: number;
-  status: string;
-  approval_status: string | null;
+  id: number; supplier_id: number | null; ordered_by: string;
+  total_price: number; status: string; approval_status: string | null;
   created_at: string;
 };
 
-/* ── 공통 유틸 ── */
+type ActiveCard = 'orders' | 'bids' | null;
+
+/* ── 유틸 ── */
 const fmt = (n: number) => n.toLocaleString('ko-KR');
 
 function getLast6Months(): string[] {
@@ -50,18 +48,52 @@ function getLast6Months(): string[] {
   });
 }
 
-/* ── 통계 카드 ── */
-function StatCard({ icon, label, value, color }: { icon: string; label: string; value: string; color: string }) {
+/* ── 클릭 가능 통계 카드 (발주/입찰 펼침) ── */
+function ClickableCard({
+  icon, label, value, isActive, borderColor, activeBg, onClick,
+}: {
+  icon: string; label: string; value: string;
+  isActive: boolean; borderColor: string; activeBg: string;
+  onClick: () => void;
+}) {
   return (
-    <div className={`card p-5 border-l-4 ${color}`}>
+    <button
+      onClick={onClick}
+      className={`card p-5 border-l-4 w-full text-left transition-all hover:shadow-md focus:outline-none
+        ${isActive ? `${borderColor} ${activeBg}` : `${borderColor}`}`}
+    >
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm text-gray-500">{label}</p>
           <p className="text-3xl font-bold text-gray-900 mt-1">{value}</p>
         </div>
-        <span className="text-3xl opacity-60">{icon}</span>
+        <div className="flex flex-col items-end gap-1">
+          <span className="text-3xl opacity-60">{icon}</span>
+          <span className={`text-[10px] font-medium ${isActive ? 'text-blue-600' : 'text-gray-300'}`}>
+            {isActive ? '▲ 접기' : '▼ 펼치기'}
+          </span>
+        </div>
       </div>
-    </div>
+    </button>
+  );
+}
+
+/* ── 링크 통계 카드 ── */
+function LinkCard({ icon, label, value, color, href }: {
+  icon: string; label: string; value: string; color: string; href: string;
+}) {
+  return (
+    <Link href={href} className="block">
+      <div className={`card p-5 border-l-4 ${color} hover:shadow-md transition-shadow cursor-pointer`}>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm text-gray-500">{label}</p>
+            <p className="text-3xl font-bold text-gray-900 mt-1">{value}</p>
+          </div>
+          <span className="text-3xl opacity-60">{icon}</span>
+        </div>
+      </div>
+    </Link>
   );
 }
 
@@ -100,12 +132,15 @@ function SectionHeader({ title, subtitle }: { title: string; subtitle?: string }
   );
 }
 
+/* ══════════════════════════════════════════════════
+   메인 컴포넌트
+══════════════════════════════════════════════════ */
 export default function DashboardPage() {
   const [profile, setProfile]   = useState<Profile | null>(null);
-  const [stats, setStats]       = useState<Stats>({ pendingRequests: 0, biddingItems: 0, activeContracts: 0, monthlySavings: 0 });
-  const [recentOrders, setRecentOrders]     = useState<Order[]>([]);
-  const [activeBids, setActiveBids]         = useState<{ id: number; item_name: string; quantity: number; unit: string; bid_count: number; lowest_price: number | null }[]>([]);
-  const [expiringContracts, setExpiring]    = useState<Contract[]>([]);
+  const [stats, setStats]       = useState<Stats>({ monthlyOrders: 0, biddingItems: 0, activeContracts: 0, expiringCount: 0 });
+  const [recentOrders, setRecentOrders] = useState<Order[]>([]);
+  const [activeBids, setActiveBids]     = useState<BidItem[]>([]);
+  const [activeCard, setActiveCard]     = useState<ActiveCard>(null);
 
   /* 발주 현황 섹션 */
   const [supplierStats, setSupplierStats] = useState<OrdStat[]>([]);
@@ -125,45 +160,58 @@ export default function DashboardPage() {
     }
   }, []);
 
-  /* ── 기존 대시보드 데이터 로드 ── */
+  /* ── 대시보드 기본 데이터 ── */
   const loadDashboard = async (prof: Profile) => {
     await supabase.rpc('expire_contracts');
 
     const thisMonth       = new Date().toISOString().slice(0, 7);
+    const monthStart      = thisMonth + '-01';
     const thirtyDaysLater = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     const isManagement    = ['마스터관리자', '직영관리자', '직영'].includes(prof.role);
 
     if (isManagement) {
-      const [p, b, a, m] = await Promise.all([
-        supabase.from('purchase_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+      const [b, a, expCnt, ordCnt] = await Promise.all([
         supabase.from('purchase_requests').select('*', { count: 'exact', head: true }).eq('status', 'bidding'),
         supabase.from('contracts').select('*', { count: 'exact', head: true }).eq('status', 'active'),
-        supabase.from('contracts').select('estimated_savings').eq('status', 'active').gte('created_at', thisMonth + '-01'),
+        supabase.from('contracts').select('*', { count: 'exact', head: true }).eq('status', 'active').lte('end_date', thirtyDaysLater),
+        supabase.from('orders').select('*', { count: 'exact', head: true }).gte('created_at', monthStart).in('status', ['ordered', 'processing', 'shipped', 'delivered']),
       ]);
-      const savings = (m.data ?? []).reduce((s: number, c: { estimated_savings: number }) => s + (c.estimated_savings ?? 0), 0);
-      setStats({ pendingRequests: p.count ?? 0, biddingItems: b.count ?? 0, activeContracts: a.count ?? 0, monthlySavings: savings });
+      setStats({
+        monthlyOrders:   ordCnt.count ?? 0,
+        biddingItems:    b.count ?? 0,
+        activeContracts: a.count ?? 0,
+        expiringCount:   expCnt.count ?? 0,
+      });
 
-      const [orders, contracts, bidsRaw] = await Promise.all([
-        supabase.from('orders').select('*, orderer:profiles!ordered_by(name), supplier:companies!supplier_id(name)').order('created_at', { ascending: false }).limit(5),
-        supabase.from('contracts').select('*, supplier:companies!supplier_id(name)').eq('status', 'active').lte('end_date', thirtyDaysLater).order('end_date').limit(5),
-        supabase.from('purchase_requests').select('id, item_name, quantity, unit, bids!request_id(unit_price)').eq('status', 'bidding'),
+      const [orders, bidsRaw] = await Promise.all([
+        supabase.from('orders')
+          .select('*, orderer:profiles!ordered_by(name), supplier:companies!supplier_id(name)')
+          .order('created_at', { ascending: false })
+          .limit(8),
+        supabase.from('purchase_requests')
+          .select('id, item_name, quantity, unit, bids!request_id(unit_price)')
+          .eq('status', 'bidding'),
       ]);
       setRecentOrders((orders.data ?? []) as Order[]);
-      setExpiring((contracts.data ?? []) as Contract[]);
-      const bidItems = (bidsRaw.data ?? []).map((r: { id: number; item_name: string; quantity: number; unit: string; bids: { unit_price: number }[] }) => ({
-        id: r.id, item_name: r.item_name, quantity: r.quantity, unit: r.unit,
-        bid_count: r.bids?.length ?? 0,
-        lowest_price: r.bids?.length ? Math.min(...r.bids.map((b: { unit_price: number }) => b.unit_price)) : null,
-      }));
-      setActiveBids(bidItems);
+      setActiveBids(
+        (bidsRaw.data ?? []).map((r: { id: number; item_name: string; quantity: number; unit: string; bids: { unit_price: number }[] }) => ({
+          id: r.id, item_name: r.item_name, quantity: r.quantity, unit: r.unit,
+          bid_count: r.bids?.length ?? 0,
+          lowest_price: r.bids?.length ? Math.min(...r.bids.map((b: { unit_price: number }) => b.unit_price)) : null,
+        }))
+      );
 
     } else if (prof.role === '사용협력사') {
-      const [p, b] = await Promise.all([
-        supabase.from('purchase_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending').eq('requester_id', prof.id),
+      const [b, ordCnt] = await Promise.all([
         supabase.from('purchase_requests').select('*', { count: 'exact', head: true }).eq('status', 'bidding').eq('requester_id', prof.id),
+        supabase.from('orders').select('*', { count: 'exact', head: true }).eq('ordered_by', prof.id).gte('created_at', monthStart).in('status', ['ordered', 'processing', 'shipped', 'delivered']),
       ]);
-      setStats({ pendingRequests: p.count ?? 0, biddingItems: b.count ?? 0, activeContracts: 0, monthlySavings: 0 });
-      const { data: orders } = await supabase.from('orders').select('*, supplier:companies!supplier_id(name)').eq('ordered_by', prof.id).order('created_at', { ascending: false }).limit(5);
+      setStats({ monthlyOrders: ordCnt.count ?? 0, biddingItems: b.count ?? 0, activeContracts: 0, expiringCount: 0 });
+      const { data: orders } = await supabase.from('orders')
+        .select('*, supplier:companies!supplier_id(name)')
+        .eq('ordered_by', prof.id)
+        .order('created_at', { ascending: false })
+        .limit(8);
       setRecentOrders((orders ?? []) as Order[]);
 
     } else {
@@ -172,15 +220,19 @@ export default function DashboardPage() {
         supabase.from('purchase_requests').select('*', { count: 'exact', head: true }).eq('status', 'bidding'),
         supabase.from('contracts').select('*', { count: 'exact', head: true }).eq('status', 'active').eq('supplier_id', prof.company_id),
       ]);
-      setStats({ pendingRequests: 0, biddingItems: b.count ?? 0, activeContracts: a.count ?? 0, monthlySavings: 0 });
+      setStats({ monthlyOrders: 0, biddingItems: b.count ?? 0, activeContracts: a.count ?? 0, expiringCount: 0 });
       if (prof.company_id) {
-        const { data: orders } = await supabase.from('orders').select('*, orderer:profiles!ordered_by(name)').eq('supplier_id', prof.company_id).order('created_at', { ascending: false }).limit(5);
+        const { data: orders } = await supabase.from('orders')
+          .select('*, orderer:profiles!ordered_by(name)')
+          .eq('supplier_id', prof.company_id)
+          .order('created_at', { ascending: false })
+          .limit(8);
         setRecentOrders((orders ?? []) as Order[]);
       }
     }
   };
 
-  /* ── 발주 현황 섹션 데이터 로드 ── */
+  /* ── 발주 현황 섹션 데이터 ── */
   const loadOrderStats = async (prof: Profile) => {
     const [supRes, teamRes, saRes, ordRes] = await Promise.all([
       supabase.from('profiles').select('id, name, username, company_id').eq('role', '납품협력사'),
@@ -194,7 +246,6 @@ export default function DashboardPage() {
     const sa        = (saRes.data ?? []) as { id: string; name: string; username: string }[];
     const rawAll    = (ordRes.data ?? []) as RawOrder[];
 
-    /* 유효 발주: 취소·결재대기 제외 */
     const valid = rawAll.filter(o =>
       ['ordered', 'processing', 'shipped', 'delivered'].includes(o.status) &&
       o.approval_status !== '결재대기'
@@ -204,16 +255,13 @@ export default function DashboardPage() {
     const isLeader  = prof.role === '마스터관리자' || prof.role === '직영관리자' ||
                       (prof.role === '직영' && (prof.is_approver ?? false));
 
-    /* 납품협력사별 */
     const supStats: OrdStat[] = suppliers
       .filter(s => s.company_id != null)
       .map(s => {
         const ords  = valid.filter(o => o.supplier_id === s.company_id);
         const mOrds = ords.filter(o => o.created_at.startsWith(thisMonth));
         return {
-          id: s.company_id as number,
-          name: s.name,
-          username: s.username,
+          id: s.company_id as number, name: s.name, username: s.username,
           monthCount:  mOrds.length,
           monthAmount: mOrds.reduce((sum, o) => sum + Number(o.total_price), 0),
           totalAmount: ords.reduce((sum, o) => sum + Number(o.total_price), 0),
@@ -221,16 +269,13 @@ export default function DashboardPage() {
       })
       .sort((a, b) => b.totalAmount - a.totalAmount);
 
-    /* 직영팀별 (tc202~206은 본인만) */
     const filteredTeam = isLeader ? team : team.filter(t => t.id === prof.id);
     const tmStats: OrdStat[] = filteredTeam.map(t => {
       const ords  = valid.filter(o => o.ordered_by === t.id);
       const mOrds = ords.filter(o => o.created_at.startsWith(thisMonth));
       const pendingCount = rawAll.filter(o => o.ordered_by === t.id && o.approval_status === '결재대기').length;
       return {
-        id: t.id,
-        name: t.name,
-        username: t.username,
+        id: t.id, name: t.name, username: t.username,
         monthCount:  mOrds.length,
         monthAmount: mOrds.reduce((sum, o) => sum + Number(o.total_price), 0),
         totalAmount: ords.reduce((sum, o) => sum + Number(o.total_price), 0),
@@ -238,14 +283,11 @@ export default function DashboardPage() {
       };
     });
 
-    /* 사용협력사별 */
     const saStats: OrdStat[] = sa.map(s => {
       const ords  = valid.filter(o => o.ordered_by === s.id);
       const mOrds = ords.filter(o => o.created_at.startsWith(thisMonth));
       return {
-        id: s.id,
-        name: s.name,
-        username: s.username,
+        id: s.id, name: s.name, username: s.username,
         monthCount:  mOrds.length,
         monthAmount: mOrds.reduce((sum, o) => sum + Number(o.total_price), 0),
         totalAmount: ords.reduce((sum, o) => sum + Number(o.total_price), 0),
@@ -258,122 +300,156 @@ export default function DashboardPage() {
     setSaStats(saStats);
   };
 
-  /* ── 월별 서머리 모달 열기 ── */
+  /* ── 카드 클릭 토글 ── */
+  const toggleCard = (card: 'orders' | 'bids') =>
+    setActiveCard(prev => (prev === card ? null : card));
+
+  /* ── 월별 서머리 모달 ── */
   const openMonthlySummary = (id: string | number, name: string, filterType: 'supplier' | 'user') => {
     const months   = getLast6Months();
     const filtered = filterType === 'supplier'
       ? allOrders.filter(o => o.supplier_id === id)
       : allOrders.filter(o => o.ordered_by === id);
 
-    const summary: MonthlyRow[] = months.map(month => {
-      const mOrds = filtered.filter(o => o.created_at.startsWith(month));
-      return {
-        month,
-        count:  mOrds.length,
-        amount: mOrds.reduce((sum, o) => sum + Number(o.total_price), 0),
-      };
-    });
-
     setModalTarget({ id, name, filterType });
-    setMonthlySummary(summary);
+    setMonthlySummary(months.map(month => {
+      const mOrds = filtered.filter(o => o.created_at.startsWith(month));
+      return { month, count: mOrds.length, amount: mOrds.reduce((s, o) => s + Number(o.total_price), 0) };
+    }));
   };
 
   if (!profile) return <div className="text-gray-400">로딩 중...</div>;
 
-  const showStatsSections = ['마스터관리자', '직영관리자', '직영'].includes(profile.role);
-  const totalSummaryAmount = monthlySummary.reduce((sum, r) => sum + r.amount, 0);
-  const totalSummaryCount  = monthlySummary.reduce((sum, r) => sum + r.count, 0);
+  const showStatsSections   = ['마스터관리자', '직영관리자', '직영'].includes(profile.role);
+  const totalSummaryAmount  = monthlySummary.reduce((s, r) => s + r.amount, 0);
+  const totalSummaryCount   = monthlySummary.reduce((s, r) => s + r.count, 0);
 
   return (
     <div className="space-y-6">
 
-      {/* ── 상단 통계 카드 ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard icon="📋" label="대기중 요청"  value={fmt(stats.pendingRequests)} color="border-yellow-400" />
-        <StatCard icon="🏷️" label="입찰 진행중"  value={fmt(stats.biddingItems)}   color="border-blue-400" />
-        <StatCard icon="📄" label="유효 계약"    value={fmt(stats.activeContracts)} color="border-green-400" />
-        <StatCard icon="💰" label="이달 절감액"  value={`${fmt(stats.monthlySavings)}원`} color="border-purple-400" />
+      {/* ════════════════════════════════════════
+          상단 4개 통계 카드 + 펼침 패널
+      ════════════════════════════════════════ */}
+      <div className="space-y-3">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* 1. 최근 발주 현황 — 클릭 펼침 */}
+          <ClickableCard
+            icon="📦"
+            label="최근 발주 현황"
+            value={`이달 ${fmt(stats.monthlyOrders)}건`}
+            isActive={activeCard === 'orders'}
+            borderColor="border-blue-400"
+            activeBg="bg-blue-50"
+            onClick={() => toggleCard('orders')}
+          />
+
+          {/* 2. 입찰 진행중 — 클릭 펼침 */}
+          <ClickableCard
+            icon="🏷️"
+            label="입찰 진행중"
+            value={fmt(stats.biddingItems)}
+            isActive={activeCard === 'bids'}
+            borderColor="border-amber-400"
+            activeBg="bg-amber-50"
+            onClick={() => toggleCard('bids')}
+          />
+
+          {/* 3. 유효 계약 — 링크 */}
+          <LinkCard
+            icon="📄"
+            label="유효 계약"
+            value={fmt(stats.activeContracts)}
+            color="border-green-400"
+            href="/contracts"
+          />
+
+          {/* 4. 계약 갱신 필요 — 링크 */}
+          <LinkCard
+            icon="⚠️"
+            label="계약 갱신 필요"
+            value={`${fmt(stats.expiringCount)}건`}
+            color={stats.expiringCount > 0 ? 'border-orange-500' : 'border-orange-300'}
+            href="/items"
+          />
+        </div>
+
+        {/* ── 최근 발주 펼침 패널 ── */}
+        {activeCard === 'orders' && (
+          <div className="card overflow-hidden border-t-2 border-blue-200">
+            <div className="flex items-center justify-between px-4 py-3 bg-blue-50 border-b border-blue-100">
+              <h3 className="font-semibold text-blue-800 text-sm">최근 발주 현황</h3>
+              <Link href="/orders" className="text-xs text-blue-600 hover:underline">전체보기 →</Link>
+            </div>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-200 bg-gray-50">
+                  <th className="table-th">발주번호</th>
+                  <th className="table-th">품목명</th>
+                  <th className="table-th text-right">금액</th>
+                  <th className="table-th">납품사</th>
+                  <th className="table-th">상태</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentOrders.length === 0 && (
+                  <tr><td colSpan={5} className="table-td text-center text-gray-400 py-6">발주 내역 없음</td></tr>
+                )}
+                {recentOrders.map(o => (
+                  <tr key={o.id} className="border-t border-gray-100 hover:bg-gray-50">
+                    <td className="table-td font-mono text-xs text-gray-500">{o.order_no}</td>
+                    <td className="table-td font-medium">{o.item_name}</td>
+                    <td className="table-td text-right">{fmt(o.total_price)}원</td>
+                    <td className="table-td text-gray-600 text-xs">
+                      {(o.supplier as { name: string } | null)?.name ?? '-'}
+                    </td>
+                    <td className="table-td">
+                      <StatusBadge status={o.status} />
+                      {o.is_auto && <span className="ml-1 text-xs text-purple-600">자동</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* ── 입찰 진행 펼침 패널 ── */}
+        {activeCard === 'bids' && (
+          <div className="card overflow-hidden border-t-2 border-amber-200">
+            <div className="flex items-center justify-between px-4 py-3 bg-amber-50 border-b border-amber-100">
+              <h3 className="font-semibold text-amber-800 text-sm">입찰 진행 현황</h3>
+              <Link href="/bids" className="text-xs text-amber-700 hover:underline">전체보기 →</Link>
+            </div>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-200 bg-gray-50">
+                  <th className="table-th">품목명</th>
+                  <th className="table-th text-right">수량</th>
+                  <th className="table-th text-center">입찰수</th>
+                  <th className="table-th text-right">최저가</th>
+                </tr>
+              </thead>
+              <tbody>
+                {activeBids.length === 0 && (
+                  <tr><td colSpan={4} className="table-td text-center text-gray-400 py-6">입찰 진행 중인 항목 없음</td></tr>
+                )}
+                {activeBids.map(b => (
+                  <tr key={b.id} className="border-t border-gray-100 hover:bg-gray-50">
+                    <td className="table-td font-medium">{b.item_name}</td>
+                    <td className="table-td text-right">{b.quantity} {b.unit}</td>
+                    <td className="table-td text-center">
+                      <span className="font-semibold text-blue-600">{b.bid_count}</span>건
+                    </td>
+                    <td className="table-td text-right text-green-700 font-medium">
+                      {b.lowest_price ? `${fmt(b.lowest_price)}원` : '-'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
-
-      {/* ── 기존 섹션 (최근발주 / 입찰현황) ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="card overflow-hidden">
-          <div className="flex items-center justify-between p-4 border-b border-gray-100">
-            <h3 className="font-semibold text-gray-800">최근 발주 현황</h3>
-            <Link href="/orders" className="text-sm text-blue-600 hover:underline">전체보기</Link>
-          </div>
-          <table className="w-full">
-            <thead><tr>
-              <th className="table-th">발주번호</th><th className="table-th">품목명</th>
-              <th className="table-th">금액</th><th className="table-th">상태</th>
-            </tr></thead>
-            <tbody>
-              {recentOrders.length === 0 && <tr><td colSpan={4} className="table-td text-center text-gray-400">데이터 없음</td></tr>}
-              {recentOrders.map(o => (
-                <tr key={o.id} className="border-t border-gray-50 hover:bg-gray-50">
-                  <td className="table-td font-mono text-xs">{o.order_no}</td>
-                  <td className="table-td">{o.item_name}</td>
-                  <td className="table-td">{fmt(o.total_price)}원</td>
-                  <td className="table-td">
-                    <StatusBadge status={o.status} />
-                    {o.is_auto && <span className="ml-1 text-xs text-purple-600">자동</span>}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="card overflow-hidden">
-          <div className="flex items-center justify-between p-4 border-b border-gray-100">
-            <h3 className="font-semibold text-gray-800">입찰 진행 현황</h3>
-            <Link href="/bids" className="text-sm text-blue-600 hover:underline">전체보기</Link>
-          </div>
-          <table className="w-full">
-            <thead><tr>
-              <th className="table-th">품목명</th><th className="table-th">수량</th>
-              <th className="table-th">입찰수</th><th className="table-th">최저가</th>
-            </tr></thead>
-            <tbody>
-              {activeBids.length === 0 && <tr><td colSpan={4} className="table-td text-center text-gray-400">데이터 없음</td></tr>}
-              {activeBids.map(b => (
-                <tr key={b.id} className="border-t border-gray-50 hover:bg-gray-50">
-                  <td className="table-td">{b.item_name}</td>
-                  <td className="table-td">{b.quantity} {b.unit}</td>
-                  <td className="table-td"><span className="font-medium text-blue-600">{b.bid_count}</span>건</td>
-                  <td className="table-td text-green-700 font-medium">{b.lowest_price ? `${fmt(b.lowest_price)}원` : '-'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* ── 만료 임박 계약 ── */}
-      {expiringContracts.length > 0 && (
-        <div className="card overflow-hidden">
-          <div className="flex items-center justify-between p-4 border-b border-gray-100">
-            <h3 className="font-semibold text-gray-800">⚠️ 30일 내 만료 예정 계약</h3>
-            <Link href="/contracts" className="text-sm text-blue-600 hover:underline">전체보기</Link>
-          </div>
-          <table className="w-full">
-            <thead><tr>
-              <th className="table-th">품목명</th><th className="table-th">납품사</th>
-              <th className="table-th">단가</th><th className="table-th">만료일</th>
-            </tr></thead>
-            <tbody>
-              {expiringContracts.map(c => (
-                <tr key={c.id} className="border-t border-gray-50 hover:bg-gray-50">
-                  <td className="table-td">{c.item_name}</td>
-                  <td className="table-td">{(c.supplier as { name: string } | null)?.name}</td>
-                  <td className="table-td">{fmt(c.unit_price)}원</td>
-                  <td className="table-td text-orange-600 font-medium">{c.end_date}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
 
       {/* ════════════════════════════════════════
           발주 현황 섹션 (관리자/직영 전용)
@@ -381,12 +457,9 @@ export default function DashboardPage() {
       {showStatsSections && (
         <div className="space-y-6">
 
-          {/* ── 납품협력사별 발주 현황 ── */}
+          {/* 납품협력사별 */}
           <div className="card overflow-hidden">
-            <SectionHeader
-              title="납품협력사별 발주 현황"
-              subtitle="업체명 클릭 시 월별 서머리 확인"
-            />
+            <SectionHeader title="납품협력사별 발주 현황" subtitle="업체명 클릭 시 월별 서머리 확인" />
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200">
@@ -427,12 +500,9 @@ export default function DashboardPage() {
             </table>
           </div>
 
-          {/* ── 직영팀별 발주 현황 ── */}
+          {/* 직영팀별 */}
           <div className="card overflow-hidden">
-            <SectionHeader
-              title="직영팀 발주 현황"
-              subtitle="팀원명 클릭 시 월별 서머리 확인"
-            />
+            <SectionHeader title="직영팀 발주 현황" subtitle="팀원명 클릭 시 월별 서머리 확인" />
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200">
@@ -480,12 +550,9 @@ export default function DashboardPage() {
             </table>
           </div>
 
-          {/* ── 사용협력사별 발주 현황 ── */}
+          {/* 사용협력사별 */}
           <div className="card overflow-hidden">
-            <SectionHeader
-              title="사용협력사별 발주 현황"
-              subtitle="업체명 클릭 시 월별 서머리 확인"
-            />
+            <SectionHeader title="사용협력사별 발주 현황" subtitle="업체명 클릭 시 월별 서머리 확인" />
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200">
@@ -530,13 +597,10 @@ export default function DashboardPage() {
       >
         {modalTarget && (
           <div className="space-y-5">
-            {/* 바 차트 */}
             <div>
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">최근 6개월 발주 금액</p>
               <BarChart data={monthlySummary} />
             </div>
-
-            {/* 월별 테이블 */}
             <div>
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">월별 상세</p>
               <table className="w-full text-sm">
